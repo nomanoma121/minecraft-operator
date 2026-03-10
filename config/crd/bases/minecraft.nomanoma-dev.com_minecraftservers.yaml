@@ -39,25 +39,45 @@ spec:
           spec:
             description: spec defines the desired state of MinecraftServer
             properties:
-              foo:
-                description: foo is an example field of MinecraftServer. Edit minecraftserver_types.go
-                  to remove/update
+              difficulty:
+                enum:
+                - Peaceful
+                - Easy
+                - Normal
+                - Hard
                 type: string
+              eula:
+                type: boolean
+              type:
+                enum:
+                - Paper
+                - Vanilla
+                type: string
+              version:
+                minLength: 1
+                type: string
+              whiteList:
+                items:
+                  type: string
+                minItems: 1
+                type: array
+              worldLevel:
+                enum:
+                - Normal
+                - Flat
+                - Amplified
+                type: string
+            required:
+            - eula
+            - type
+            - version
             type: object
           status:
             description: status defines the observed state of MinecraftServer
             properties:
+              address:
+                type: string
               conditions:
-                description: |-
-                  conditions represent the current state of the MinecraftServer resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
-
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.

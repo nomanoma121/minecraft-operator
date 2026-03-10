@@ -23,39 +23,30 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+type ServerRef struct {
+	Name string `json:"name,omitempty"`
+}
+
 // MinecraftNetworkSpec defines the desired state of MinecraftNetwork
 type MinecraftNetworkSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
-
-	// foo is an example field of MinecraftNetwork. Edit minecraftnetwork_types.go to remove/update
-	// +optional
-	Foo *string `json:"foo,omitempty"`
+	// +required
+	ProxyRef      string      `json:"proxyRef"`
+	// +kubebuilder:validation:MinItems=1
+	// +required
+	Servers       []ServerRef `json:"servers"`
+	// +required
+	DefaultServer string      `json:"defaultServer"`
 }
 
 // MinecraftNetworkStatus defines the observed state of MinecraftNetwork.
 type MinecraftNetworkStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-
-	// conditions represent the current state of the MinecraftNetwork resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
 	// +listType=map
 	// +listMapKey=type
 	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	Conditions   []metav1.Condition `json:"conditions,omitempty"`
+	ReadyServers int32              `json:"readyServers,omitempty"`
+	ProxyReady   bool               `json:"proxyReady,omitempty"`
+	TotalServers int32              `json:"totalServers,omitempty"`
 }
 
 // +kubebuilder:object:root=true

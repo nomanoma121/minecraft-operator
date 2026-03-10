@@ -23,39 +23,58 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+type MinecraftServerType string
+
+const (
+	MinecraftServerTypePaper   MinecraftServerType = "Paper"
+	MinecraftServerTypeVanilla MinecraftServerType = "Vanilla"
+)
+
+type MinecraftServerWorldLevel string
+
+const (
+	MinecraftServerWorldLevelNormal MinecraftServerWorldLevel = "Normal"
+	MinecraftServerWorldLevelFlat   MinecraftServerWorldLevel = "Flat"
+	MinecraftServerWorldLevelAmplified   MinecraftServerWorldLevel = "Amplified"
+)
+
+type MinecraftServerDifficulty string
+
+const (
+	MinecraftServerDifficultyPeaceful MinecraftServerDifficulty = "Peaceful"
+	MinecraftServerDifficultyEasy     MinecraftServerDifficulty = "Easy"
+	MinecraftServerDifficultyNormal   MinecraftServerDifficulty = "Normal"
+	MinecraftServerDifficultyHard     MinecraftServerDifficulty = "Hard"
+)
+
 // MinecraftServerSpec defines the desired state of MinecraftServer
 type MinecraftServerSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
-
-	// foo is an example field of MinecraftServer. Edit minecraftserver_types.go to remove/update
+	// +kubebuilder:validation:Enum=Paper;Vanilla
+	// +required
+	Type       MinecraftServerType       `json:"type"`
+	// +kubebuilder:validation:MinLength=1
+	// +required
+	Version    string                    `json:"version"`
+	// +required
+	EULA       bool                      `json:"eula"`
 	// +optional
-	Foo *string `json:"foo,omitempty"`
+	// +kubebuilder:validation:MinItems=1
+	WhiteList  []string                  `json:"whiteList,omitempty"`
+	// +kubebuilder:validation:Enum=Normal;Flat;Amplified
+	// +optional
+	WorldLevel MinecraftServerWorldLevel `json:"worldLevel,omitempty"`
+	// +kubebuilder:validation:Enum=Peaceful;Easy;Normal;Hard
+	// +optional
+	Difficulty MinecraftServerDifficulty `json:"difficulty,omitempty"`
 }
 
 // MinecraftServerStatus defines the observed state of MinecraftServer.
 type MinecraftServerStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-
-	// conditions represent the current state of the MinecraftServer resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
 	// +listType=map
 	// +listMapKey=type
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	Address    string             `json:"address,omitempty"`
 }
 
 // +kubebuilder:object:root=true

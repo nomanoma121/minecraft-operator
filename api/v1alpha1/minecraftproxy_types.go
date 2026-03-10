@@ -23,39 +23,33 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+type MinecraftProxyType string
+
+const (
+	MinecraftProxyTypeVelocity MinecraftProxyType = "Velocity"
+)
+
 // MinecraftProxySpec defines the desired state of MinecraftProxy
 type MinecraftProxySpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
-
-	// foo is an example field of MinecraftProxy. Edit minecraftproxy_types.go to remove/update
+	// +kubebuilder:validation:MinLength=1
+	// +required
+	Version  string             `json:"version"`
+	// +kubebuilder:validation:Enum=Velocity
+	// +required
+	Type     MinecraftProxyType `json:"type"`
+	// +kubebuilder:default=1
 	// +optional
-	Foo *string `json:"foo,omitempty"`
+	Replicas int32              `json:"replicas,omitempty"`
 }
 
 // MinecraftProxyStatus defines the observed state of MinecraftProxy.
 type MinecraftProxyStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-
-	// conditions represent the current state of the MinecraftProxy resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
-	// The status of each condition is one of True, False, or Unknown.
 	// +listType=map
 	// +listMapKey=type
 	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	Conditions    []metav1.Condition `json:"conditions,omitempty"`
+	ReadyReplicas int32              `json:"readyReplicas,omitempty"`
+	Address       string             `json:"address,omitempty"`
 }
 
 // +kubebuilder:object:root=true
