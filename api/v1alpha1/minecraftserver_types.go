@@ -81,6 +81,7 @@ type MinecraftServerStatus struct {
 // +kubebuilder:subresource:status
 
 // MinecraftServer is the Schema for the minecraftservers API
+// +kubebuilder:resource:shortName=mcs
 type MinecraftServer struct {
 	metav1.TypeMeta `json:",inline"`
 

@@ -11,6 +11,8 @@ spec:
     kind: MinecraftNetwork
     listKind: MinecraftNetworkList
     plural: minecraftnetworks
+    shortNames:
+    - mcn
     singular: minecraftnetwork
   scope: Namespaced
   versions:
@@ -45,10 +47,7 @@ spec:
                 type: string
               servers:
                 items:
-                  properties:
-                    name:
-                      type: string
-                  type: object
+                  type: string
                 minItems: 1
                 type: array
             required:

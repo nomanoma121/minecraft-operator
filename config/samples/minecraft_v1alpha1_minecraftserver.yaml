@@ -1,9 +1,32 @@
+---
 apiVersion: minecraft.nomanoma-dev.com/v1alpha1
 kind: MinecraftServer
 metadata:
   labels:
     app.kubernetes.io/name: minecraft-operator
     app.kubernetes.io/managed-by: kustomize
-  name: minecraftserver-sample
+  name: survival
 spec:
-  # TODO(user): Add fields here
+  type: Paper
+  version: 1.19.4
+  eula: true
+  whiteList:
+    - player1
+    - player2
+  worldLevel: Normal
+  difficulty: Normal
+---
+apiVersion: minecraft.nomanoma-dev.com/v1alpha1
+kind: MinecraftServer
+metadata:
+  labels:
+    app.kubernetes.io/name: minecraft-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: creative
+spec:
+  type: Paper
+  version: 1.19.4
+  eula: true
+  worldLevel: Flat
+  difficulty: Peaceful
+---

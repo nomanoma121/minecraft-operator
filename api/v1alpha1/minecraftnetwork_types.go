@@ -23,19 +23,15 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-type ServerRef struct {
-	Name string `json:"name,omitempty"`
-}
-
 // MinecraftNetworkSpec defines the desired state of MinecraftNetwork
 type MinecraftNetworkSpec struct {
 	// +required
-	ProxyRef      string      `json:"proxyRef"`
+	ProxyRef string `json:"proxyRef"`
 	// +kubebuilder:validation:MinItems=1
 	// +required
-	Servers       []ServerRef `json:"servers"`
+	Servers []string `json:"servers"`
 	// +required
-	DefaultServer string      `json:"defaultServer"`
+	DefaultServer string `json:"defaultServer"`
 }
 
 // MinecraftNetworkStatus defines the observed state of MinecraftNetwork.
@@ -53,6 +49,7 @@ type MinecraftNetworkStatus struct {
 // +kubebuilder:subresource:status
 
 // MinecraftNetwork is the Schema for the minecraftnetworks API
+// +kubebuilder:resource:shortName=mcn
 type MinecraftNetwork struct {
 	metav1.TypeMeta `json:",inline"`
 

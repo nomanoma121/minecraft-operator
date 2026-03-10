@@ -56,6 +56,7 @@ type MinecraftProxyStatus struct {
 // +kubebuilder:subresource:status
 
 // MinecraftProxy is the Schema for the minecraftproxies API
+// +kubebuilder:resource:shortName=mcp
 type MinecraftProxy struct {
 	metav1.TypeMeta `json:",inline"`
 

@@ -11,6 +11,8 @@ spec:
     kind: MinecraftServer
     listKind: MinecraftServerList
     plural: minecraftservers
+    shortNames:
+    - mcs
     singular: minecraftserver
   scope: Namespaced
   versions:
