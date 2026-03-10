@@ -7,8 +7,9 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: survival
 spec:
+  networkRef: test-network
   type: Paper
-  version: 1.19.4
+  version: "1.19.4"
   eula: true
   whiteList:
     - player1
@@ -24,9 +25,9 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: creative
 spec:
+  networkRef: test-network
   type: Paper
-  version: 1.19.4
+  version: "1.19.4"
   eula: true
   worldLevel: Flat
   difficulty: Peaceful
----

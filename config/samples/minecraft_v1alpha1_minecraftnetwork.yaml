@@ -6,9 +6,4 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: test-network
 spec:
-  proxyRef: proxy
-  servers:
-    - survival
-    - creative
-    - lobby
-  defaultServer: lobby
+  defaultServer: survival

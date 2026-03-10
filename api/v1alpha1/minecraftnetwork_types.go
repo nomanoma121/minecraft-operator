@@ -26,11 +26,6 @@ import (
 // MinecraftNetworkSpec defines the desired state of MinecraftNetwork
 type MinecraftNetworkSpec struct {
 	// +required
-	ProxyRef string `json:"proxyRef"`
-	// +kubebuilder:validation:MinItems=1
-	// +required
-	Servers []string `json:"servers"`
-	// +required
 	DefaultServer string `json:"defaultServer"`
 }
 

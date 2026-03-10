@@ -6,6 +6,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: proxy
 spec:
+  networkRef: test-network
   type: Velocity
-  version: 3.1.2
+  version: "3.1.2"
   replicas: 1

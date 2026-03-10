@@ -50,6 +50,9 @@ spec:
                 type: string
               eula:
                 type: boolean
+              networkRef:
+                minLength: 1
+                type: string
               type:
                 enum:
                 - Paper
@@ -71,6 +74,7 @@ spec:
                 type: string
             required:
             - eula
+            - networkRef
             - type
             - version
             type: object

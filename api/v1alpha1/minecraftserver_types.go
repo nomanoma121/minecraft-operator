@@ -49,6 +49,9 @@ const (
 
 // MinecraftServerSpec defines the desired state of MinecraftServer
 type MinecraftServerSpec struct {
+	// +kubebuilder:validation:MinLength=1
+	// +required
+	NetworkRef string `json:"networkRef"`
 	// +kubebuilder:validation:Enum=Paper;Vanilla
 	// +required
 	Type       MinecraftServerType       `json:"type"`

@@ -33,6 +33,9 @@ const (
 type MinecraftProxySpec struct {
 	// +kubebuilder:validation:MinLength=1
 	// +required
+	NetworkRef string `json:"networkRef"`
+	// +kubebuilder:validation:MinLength=1
+	// +required
 	Version  string             `json:"version"`
 	// +kubebuilder:validation:Enum=Velocity
 	// +required

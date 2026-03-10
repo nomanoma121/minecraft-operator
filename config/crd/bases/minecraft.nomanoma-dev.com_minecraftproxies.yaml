@@ -41,6 +41,9 @@ spec:
           spec:
             description: spec defines the desired state of MinecraftProxy
             properties:
+              networkRef:
+                minLength: 1
+                type: string
               replicas:
                 default: 1
                 format: int32
@@ -53,6 +56,7 @@ spec:
                 minLength: 1
                 type: string
             required:
+            - networkRef
             - type
             - version
             type: object
