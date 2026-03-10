@@ -1,11 +1,38 @@
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  labels:
-    app.kubernetes.io/name: minecraft-operator
-    app.kubernetes.io/managed-by: kustomize
   name: manager-role
 rules:
-- apiGroups: [""]
-  resources: ["pods"]
-  verbs: ["get", "list", "watch"]
+- apiGroups:
+  - minecraft.nomanoma-dev.com
+  resources:
+  - minecraftnetworks
+  - minecraftproxies
+  - minecraftservers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - minecraft.nomanoma-dev.com
+  resources:
+  - minecraftnetworks/finalizers
+  - minecraftproxies/finalizers
+  - minecraftservers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - minecraft.nomanoma-dev.com
+  resources:
+  - minecraftnetworks/status
+  - minecraftproxies/status
+  - minecraftservers/status
+  verbs:
+  - get
+  - patch
+  - update

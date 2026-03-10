@@ -18,3 +18,17 @@ resources:
 - metrics_auth_role.yaml
 - metrics_auth_role_binding.yaml
 - metrics_reader_role.yaml
+# For each CRD, "Admin", "Editor" and "Viewer" roles are scaffolded by
+# default, aiding admins in cluster management. Those roles are
+# not used by the minecraft-operator itself. You can comment the following lines
+# if you do not want those helpers be installed with your Project.
+- minecraftnetwork_admin_role.yaml
+- minecraftnetwork_editor_role.yaml
+- minecraftnetwork_viewer_role.yaml
+- minecraftproxy_admin_role.yaml
+- minecraftproxy_editor_role.yaml
+- minecraftproxy_viewer_role.yaml
+- minecraftserver_admin_role.yaml
+- minecraftserver_editor_role.yaml
+- minecraftserver_viewer_role.yaml
+

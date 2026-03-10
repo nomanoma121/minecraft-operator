@@ -1,0 +1,9 @@
+apiVersion: minecraft.nomanoma-dev.com/v1alpha1
+kind: MinecraftNetwork
+metadata:
+  labels:
+    app.kubernetes.io/name: minecraft-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: minecraftnetwork-sample
+spec:
+  # TODO(user): Add fields here

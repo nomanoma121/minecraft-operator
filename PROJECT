@@ -8,4 +8,32 @@ layout:
 - go.kubebuilder.io/v4
 projectName: minecraft-operator
 repo: github.com/nomanoma121/minecraft-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: nomanoma-dev.com
+  group: minecraft
+  kind: MinecraftServer
+  path: github.com/nomanoma121/minecraft-operator/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: nomanoma-dev.com
+  group: minecraft
+  kind: MinecraftProxy
+  path: github.com/nomanoma121/minecraft-operator/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: nomanoma-dev.com
+  group: minecraft
+  kind: MinecraftNetwork
+  path: github.com/nomanoma121/minecraft-operator/api/v1alpha1
+  version: v1alpha1
 version: "3"
