@@ -349,9 +349,9 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 			h.SetServerReadyCondition(server.Name, true)
 			h.ReconcileNetworkOnce(networkName)
 
-				Eventually(func() int32 {
-					n := &minecraftv1alpha1.MinecraftNetwork{}
-					if err := k8sClient.Get(ctx, types.NamespacedName{Name: networkName, Namespace: h.Namespace}, n); err != nil {
+			Eventually(func() int32 {
+				n := &minecraftv1alpha1.MinecraftNetwork{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: networkName, Namespace: h.Namespace}, n); err != nil {
 					return -1
 				}
 				return n.Status.TotalServers
