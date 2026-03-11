@@ -347,6 +347,7 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 			// serverを作成してnetworkを参照させる
 			server := h.CreateServer(networkName, "server-ready", CreateServerOpts{})
 			h.SetServerReadyCondition(server.Name, true)
+			h.SetProxyReadyCondition(proxy.Name, true)
 			h.ReconcileNetworkOnce(networkName)
 
 			Eventually(func() int32 {
