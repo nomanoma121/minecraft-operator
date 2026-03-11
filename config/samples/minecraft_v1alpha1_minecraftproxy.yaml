@@ -8,5 +8,5 @@ metadata:
 spec:
   networkRef: test-network
   type: Velocity
-  version: "3.1.2"
+  version: "latest"
   replicas: 1

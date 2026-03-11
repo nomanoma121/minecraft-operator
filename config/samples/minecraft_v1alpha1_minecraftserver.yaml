@@ -10,6 +10,8 @@ spec:
   networkRef: test-network
   type: Paper
   version: "1.20.1"
+  memory: "512M"
+  storageSize: "2Gi"
   eula: true
   whiteList:
     - player1
@@ -28,6 +30,8 @@ spec:
   networkRef: test-network
   type: Paper
   version: "1.20.1"
+  memory: "512M"
+  storageSize: "2Gi"
   eula: true
   worldLevel: Flat
   difficulty: Peaceful

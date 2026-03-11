@@ -63,8 +63,14 @@ spec:
                 type: string
               eula:
                 type: boolean
+              memory:
+                pattern: ^[0-9]+[mMgG]$
+                type: string
               networkRef:
                 minLength: 1
+                type: string
+              storageSize:
+                pattern: ^[0-9]+(Mi|Gi|Ti)$
                 type: string
               type:
                 enum:

@@ -69,6 +69,12 @@ type MinecraftServerSpec struct {
 	// +kubebuilder:validation:Enum=Peaceful;Easy;Normal;Hard
 	// +optional
 	Difficulty MinecraftServerDifficulty `json:"difficulty,omitempty"`
+	// +optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[mMgG]$`
+	Memory string `json:"memory,omitempty"`
+	// +optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+(Mi|Gi|Ti)$`
+	StorageSize string `json:"storageSize,omitempty"`
 }
 
 // MinecraftServerStatus defines the observed state of MinecraftServer.
