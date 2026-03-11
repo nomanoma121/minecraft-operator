@@ -9,7 +9,7 @@ metadata:
 spec:
   networkRef: test-network
   type: Paper
-  version: "1.19.4"
+  version: "1.20.1"
   eula: true
   whiteList:
     - player1
@@ -27,7 +27,7 @@ metadata:
 spec:
   networkRef: test-network
   type: Paper
-  version: "1.19.4"
+  version: "1.20.1"
   eula: true
   worldLevel: Flat
   difficulty: Peaceful

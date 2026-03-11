@@ -16,7 +16,20 @@ spec:
     singular: minecraftproxy
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: Ready
+      type: string
+    - jsonPath: .status.readyReplicas
+      name: Replicas
+      type: integer
+    - jsonPath: .spec.type
+      name: Type
+      type: string
+    - jsonPath: .status.address
+      name: Address
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: MinecraftProxy is the Schema for the minecraftproxies API

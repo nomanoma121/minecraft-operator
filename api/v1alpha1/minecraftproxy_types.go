@@ -60,6 +60,10 @@ type MinecraftProxyStatus struct {
 
 // MinecraftProxy is the Schema for the minecraftproxies API
 // +kubebuilder:resource:shortName=mcp
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=".status.conditions[?(@.type=='Ready')].status"
+// +kubebuilder:printcolumn:name="Replicas",type=integer,JSONPath=".status.readyReplicas"
+// +kubebuilder:printcolumn:name="Type",type=string,JSONPath=".spec.type"
+// +kubebuilder:printcolumn:name="Address",type=string,JSONPath=".status.address"
 type MinecraftProxy struct {
 	metav1.TypeMeta `json:",inline"`
 

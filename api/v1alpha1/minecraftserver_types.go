@@ -85,6 +85,10 @@ type MinecraftServerStatus struct {
 
 // MinecraftServer is the Schema for the minecraftservers API
 // +kubebuilder:resource:shortName=mcs
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=".status.conditions[?(@.type=='Ready')].status"
+// +kubebuilder:printcolumn:name="Type",type=string,JSONPath=".spec.type"
+// +kubebuilder:printcolumn:name="Version",type=string,JSONPath=".spec.version"
+// +kubebuilder:printcolumn:name="Address",type=string,JSONPath=".status.address"
 type MinecraftServer struct {
 	metav1.TypeMeta `json:",inline"`
 

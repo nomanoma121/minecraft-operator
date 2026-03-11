@@ -45,6 +45,10 @@ type MinecraftNetworkStatus struct {
 
 // MinecraftNetwork is the Schema for the minecraftnetworks API
 // +kubebuilder:resource:shortName=mcn
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=".status.conditions[?(@.type=='Ready')].status"
+// +kubebuilder:printcolumn:name="Total",type=integer,JSONPath=".status.totalServers"
+// +kubebuilder:printcolumn:name="ReadySrv",type=integer,JSONPath=".status.readyServers"
+// +kubebuilder:printcolumn:name="ProxyReady",type=boolean,JSONPath=".status.proxyReady"
 type MinecraftNetwork struct {
 	metav1.TypeMeta `json:",inline"`
 
