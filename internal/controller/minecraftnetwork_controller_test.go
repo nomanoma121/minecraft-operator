@@ -40,11 +40,10 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 			ctx := context.Background()
 			h := NewHarness(ctx, "default", timeout, interval)
 			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
-			spec := DefaultServerSpec(networkName)
 
-			h.CreateNetwork(networkName)
-			server1 := h.CreateServer("server-ready", spec, nil)
-			server2 := h.CreateServer("server-not-ready", spec, nil)
+			h.CreateNetwork(networkName, CreateNetworkOpts{})
+			server1 := h.CreateServer(networkName, "server-ready", CreateServerOpts{})
+			server2 := h.CreateServer(networkName, "server-not-ready", CreateServerOpts{})
 
 			h.SetServerReadyCondition(server1.Name, true)
 			h.SetServerReadyCondition(server2.Name, false)
@@ -63,9 +62,9 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 			h := NewHarness(ctx, "default", timeout, interval)
 			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
 
-			h.CreateNetwork(networkName)
-			proxy1 := h.CreateProxy(networkName, "proxy-ready")
-			proxy2 := h.CreateProxy(networkName, "proxy-not-ready")
+			h.CreateNetwork(networkName, CreateNetworkOpts{})
+			proxy1 := h.CreateProxy(networkName, "proxy-ready", CreateProxyOpts{})
+			proxy2 := h.CreateProxy(networkName, "proxy-not-ready", CreateProxyOpts{})
 
 			h.SetProxyReadyCondition(proxy1.Name, true)
 			h.SetProxyReadyCondition(proxy2.Name, false)
@@ -83,11 +82,10 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 			ctx := context.Background()
 			h := NewHarness(ctx, "default", timeout, interval)
 			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
-			spec := DefaultServerSpec(networkName)
 
-			h.CreateNetwork(networkName)
-			proxy := h.CreateProxy(networkName, "proxy-ready")
-			server := h.CreateServer("server-ready", spec, nil)
+			h.CreateNetwork(networkName, CreateNetworkOpts{})
+			proxy := h.CreateProxy(networkName, "proxy-ready", CreateProxyOpts{})
+			server := h.CreateServer(networkName, "server-ready", CreateServerOpts{})
 
 			h.SetProxyReadyCondition(proxy.Name, true)
 			h.SetServerReadyCondition(server.Name, true)
@@ -105,11 +103,10 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 			ctx := context.Background()
 			h := NewHarness(ctx, "default", timeout, interval)
 			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
-			spec := DefaultServerSpec(networkName)
 
-			h.CreateNetwork(networkName)
-			proxy := h.CreateProxy(networkName, "proxy-not-ready")
-			server := h.CreateServer("server-not-ready", spec, nil)
+			h.CreateNetwork(networkName, CreateNetworkOpts{})
+			proxy := h.CreateProxy(networkName, "proxy-not-ready", CreateProxyOpts{})
+			server := h.CreateServer(networkName, "server-not-ready", CreateServerOpts{})
 
 			h.SetProxyReadyCondition(proxy.Name, false)
 			h.SetServerReadyCondition(server.Name, false)
@@ -127,7 +124,22 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 
 	Context("velocity.toml generation", func() {
 		It("writes [servers] entries with service FQDN and port 25565", func() {
+			ctx := context.Background()
+			h := NewHarness(ctx, "default", timeout, interval)
+			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
 
+			h.CreateNetwork(networkName, CreateNetworkOpts{})
+			server := h.CreateServer(networkName, "server-ready", CreateServerOpts{})
+			h.SetServerReadyCondition(server.Name, true)
+			h.ReconcileNetworkOnce(networkName)
+
+			Eventually(func() string {
+				p := &minecraftv1alpha1.MinecraftProxy{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: server.Name, Namespace: h.Namespace}, p); err != nil {
+					return ""
+				}
+				return p.Status.Address
+			}, timeout, interval).Should(ContainSubstring(fmt.Sprintf(`address = "%s.%s.svc.cluster.local:25565"`, server.Name, h.Namespace)))
 		})
 		It("puts defaultServer first when it exists", func() {
 			// Create a MinecraftNetwork and related MinecraftServers with a default server
