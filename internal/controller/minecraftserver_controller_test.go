@@ -50,7 +50,7 @@ var _ = Describe("MinecraftServer Controller", func() {
 		serverName = fmt.Sprintf("test-server-%d", time.Now().UnixNano())
 		h = NewHarness(ctx, namespace, timeout, interval)
 
-		h.CreateNetworkWithDefault(networkName, serverName)
+		h.CreateNetwork(networkName, CreateNetworkOpts{})
 	})
 
 	Context("When creating a MinecraftServer", func() {

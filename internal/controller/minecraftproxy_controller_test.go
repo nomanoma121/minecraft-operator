@@ -47,7 +47,7 @@ var _ = Describe("MinecraftProxy Controller", func() {
 		networkName = fmt.Sprintf("test-network-%d", time.Now().UnixNano())
 		h = NewHarness(ctx, namespace, timeout, interval)
 
-		h.CreateNetworkWithDefault(networkName, "lobby")
+		h.CreateNetwork(networkName, CreateNetworkOpts{})
 	})
 
 	Context("When creating a MinecraftProxy", func() {

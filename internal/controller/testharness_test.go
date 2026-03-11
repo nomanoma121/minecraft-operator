@@ -7,6 +7,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -30,6 +31,20 @@ func NewHarness(ctx context.Context, namespace string, timeout time.Duration, in
 		Timeout:   timeout,
 		Interval:  interval,
 	}
+}
+
+func (h *Harness) CreateNamespace(namePrefix string) string {
+	name := fmt.Sprintf("%s-%d", namePrefix, time.Now().UnixNano())
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+	Expect(k8sClient.Create(h.Ctx, ns)).To(Succeed())
+	DeferCleanup(func() {
+		Expect(client.IgnoreNotFound(k8sClient.Delete(h.Ctx, ns))).To(Succeed())
+	})
+	return name
 }
 
 type CreateNetworkOpts struct {

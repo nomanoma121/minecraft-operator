@@ -19,10 +19,12 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -129,71 +131,274 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
 
 			h.CreateNetwork(networkName, CreateNetworkOpts{})
+			proxy := h.CreateProxy(networkName, "proxy", CreateProxyOpts{})
 			server := h.CreateServer(networkName, "server-ready", CreateServerOpts{})
+
+			// Proxy側が初期ConfigMapを作る前提
+			h.ReconcileProxyOnce(proxy.Name)
 			h.SetServerReadyCondition(server.Name, true)
 			h.ReconcileNetworkOnce(networkName)
 
 			Eventually(func() string {
-				p := &minecraftv1alpha1.MinecraftProxy{}
-				if err := k8sClient.Get(ctx, types.NamespacedName{Name: server.Name, Namespace: h.Namespace}, p); err != nil {
+				cm := &corev1.ConfigMap{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      proxy.Name + "-velocity-config",
+					Namespace: h.Namespace,
+				}, cm); err != nil {
 					return ""
 				}
-				return p.Status.Address
-			}, timeout, interval).Should(ContainSubstring(fmt.Sprintf(`address = "%s.%s.svc.cluster.local:25565"`, server.Name, h.Namespace)))
+				return cm.Data["velocity.toml"]
+			}, timeout, interval).Should(And(
+				ContainSubstring("[servers]"),
+				ContainSubstring(fmt.Sprintf(
+					`%s = "%s.%s.svc.cluster.local:25565"`,
+					server.Name,
+					server.Name,
+					h.Namespace,
+				)),
+			))
 		})
+
 		It("puts defaultServer first when it exists", func() {
-			// Create a MinecraftNetwork and related MinecraftServers with a default server
-			// Verify that the default server is listed first in the velocity.toml
+			ctx := context.Background()
+			h := NewHarness(ctx, "default", timeout, interval)
+			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
+			h.CreateNetwork(networkName, CreateNetworkOpts{})
+			proxy := h.CreateProxy(networkName, "proxy", CreateProxyOpts{})
+			defaultServer := h.CreateServer(networkName, "server-default", CreateServerOpts{})
+			otherServer := h.CreateServer(networkName, "server-other", CreateServerOpts{})
+
+			// 作成後に実名を defaultServer へ設定
+			Eventually(func() error {
+				n := &minecraftv1alpha1.MinecraftNetwork{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: networkName, Namespace: h.Namespace}, n); err != nil {
+					return err
+				}
+				n.Spec.DefaultServer = defaultServer.Name
+				return k8sClient.Update(ctx, n)
+			}, timeout, interval).Should(Succeed())
+
+			h.ReconcileProxyOnce(proxy.Name)
+			h.SetServerReadyCondition(defaultServer.Name, true)
+			h.SetServerReadyCondition(otherServer.Name, true)
+			h.ReconcileNetworkOnce(networkName)
+
+			Eventually(func() []string {
+				return extractTryServers(getVelocityConfigToml(ctx, h, proxy.Name))
+			}, timeout, interval).Should(SatisfyAll(
+				Not(BeEmpty()),
+				WithTransform(func(servers []string) string { return servers[0] }, Equal(defaultServer.Name)),
+			))
 		})
+
 		It("falls back to lobby first when defaultServer is empty or invalid", func() {
-			// Create a MinecraftNetwork and related MinecraftServers without a valid default server
-			// Verify that the lobby server is listed first in the velocity.toml
+			ctx := context.Background()
+			h := NewHarness(ctx, "default", timeout, interval)
+			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
+			invalidDefault := "not-exist-server"
+
+			h.CreateNetwork(networkName, CreateNetworkOpts{DefaultServer: &invalidDefault})
+			proxy := h.CreateProxy(networkName, "proxy", CreateProxyOpts{})
+			lobby := h.CreateServer(networkName, "lobby", CreateServerOpts{})
+			other := h.CreateServer(networkName, "server-other", CreateServerOpts{})
+
+			h.ReconcileProxyOnce(proxy.Name)
+			h.SetServerReadyCondition(lobby.Name, true)
+			h.SetServerReadyCondition(other.Name, true)
+			h.ReconcileNetworkOnce(networkName)
+
+			Eventually(func() []string {
+				return extractTryServers(getVelocityConfigToml(ctx, h, proxy.Name))
+			}, timeout, interval).Should(SatisfyAll(
+				Not(BeEmpty()),
+				WithTransform(func(servers []string) string { return servers[0] }, Equal(lobby.Name)),
+			))
 		})
+
 		It("sorts remaining try entries by server name", func() {
-			// Create a MinecraftNetwork and related MinecraftServers with multiple servers
-			// Verify that the remaining servers are sorted alphabetically in the velocity.toml
+			ctx := context.Background()
+			h := NewHarness(ctx, "default", timeout, interval)
+			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
+
+			h.CreateNetwork(networkName, CreateNetworkOpts{})
+			proxy := h.CreateProxy(networkName, "proxy", CreateProxyOpts{})
+			serverB := h.CreateServer(networkName, "b-server", CreateServerOpts{})
+			serverA := h.CreateServer(networkName, "a-server", CreateServerOpts{})
+			serverC := h.CreateServer(networkName, "c-server", CreateServerOpts{})
+
+			h.ReconcileProxyOnce(proxy.Name)
+			h.SetServerReadyCondition(serverA.Name, true)
+			h.SetServerReadyCondition(serverB.Name, true)
+			h.SetServerReadyCondition(serverC.Name, true)
+			h.ReconcileNetworkOnce(networkName)
+
+			Eventually(func() []string {
+				return extractTryServers(getVelocityConfigToml(ctx, h, proxy.Name))
+			}, timeout, interval).Should(Equal([]string{serverA.Name, serverB.Name, serverC.Name}))
 		})
+
 		It("writes try=[] when no related servers exist", func() {
-			// Create a MinecraftNetwork without any related MinecraftServers
-			// Verify that the try array is empty in the velocity.toml
+			ctx := context.Background()
+			h := NewHarness(ctx, "default", timeout, interval)
+			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
+
+			h.CreateNetwork(networkName, CreateNetworkOpts{})
+			proxy := h.CreateProxy(networkName, "proxy", CreateProxyOpts{})
+
+			h.ReconcileProxyOnce(proxy.Name)
+			h.ReconcileNetworkOnce(networkName)
+
+			Eventually(func() string {
+				return getVelocityConfigToml(ctx, h, proxy.Name)
+			}, timeout, interval).Should(ContainSubstring("try = []"))
 		})
 	})
 
 	Context("Resource selection scope", func() {
 		It("selects only resources in the same namespace", func() {
-			// Create a MinecraftNetwork and related resources in different namespaces
-			// Verify that only resources in the same namespace are selected
+			ctx := context.Background()
+			h := NewHarness(ctx, "default", timeout, interval)
+			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
+			h.CreateNetwork(networkName, CreateNetworkOpts{})
+			proxy := h.CreateProxy(networkName, "proxy", CreateProxyOpts{})
+			server := h.CreateServer(networkName, "server-ready", CreateServerOpts{})
+
+			// 同名相当のリソースを別namespaceに作成
+			otherNamespace := h.CreateNamespace("other-ns")
+			otherH := NewHarness(ctx, otherNamespace, timeout, interval)
+			otherH.CreateServer(networkName, server.Name, CreateServerOpts{})
+
+			h.SetProxyReadyCondition(proxy.Name, true)
+			h.SetServerReadyCondition(server.Name, true)
+			h.ReconcileNetworkOnce(networkName)
+
+			Eventually(func() [2]int32 {
+				n := &minecraftv1alpha1.MinecraftNetwork{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: networkName, Namespace: h.Namespace}, n); err != nil {
+					return [2]int32{-1, -1}
+				}
+				return [2]int32{n.Status.TotalServers, n.Status.ReadyServers}
+			}, timeout, interval).Should(Equal([2]int32{1, 1}))
 		})
 		It("selects only resources whose networkRef matches network name", func() {
-			// Create a MinecraftNetwork and related resources with different networkRef values
-			// Verify that only resources with matching networkRef are selected
+			ctx := context.Background()
+			h := NewHarness(ctx, "default", timeout, interval)
+			network1 := fmt.Sprintf("network1-%d", time.Now().UnixNano())
+			network2 := fmt.Sprintf("network2-%d", time.Now().UnixNano())
+
+			h.CreateNetwork(network1, CreateNetworkOpts{})
+			h.CreateNetwork(network2, CreateNetworkOpts{})
+
+			proxy1 := h.CreateProxy(network1, "proxy1", CreateProxyOpts{})
+			proxy2 := h.CreateProxy(network2, "proxy2", CreateProxyOpts{})
+			server1 := h.CreateServer(network1, "server1", CreateServerOpts{})
+			server2 := h.CreateServer(network2, "server2", CreateServerOpts{})
+
+			h.SetProxyReadyCondition(proxy1.Name, true)
+			h.SetProxyReadyCondition(proxy2.Name, true)
+			h.SetServerReadyCondition(server1.Name, true)
+			h.SetServerReadyCondition(server2.Name, true)
+			h.ReconcileNetworkOnce(network1)
+			h.ReconcileNetworkOnce(network2)
+
+			Eventually(func() [2]int32 {
+				n1 := &minecraftv1alpha1.MinecraftNetwork{}
+				n2 := &minecraftv1alpha1.MinecraftNetwork{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: network1, Namespace: h.Namespace}, n1); err != nil {
+					return [2]int32{-1, -1}
+				}
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: network2, Namespace: h.Namespace}, n2); err != nil {
+					return [2]int32{-1, -1}
+				}
+				return [2]int32{n1.Status.ReadyServers, n2.Status.ReadyServers}
+			}, timeout, interval).Should(Equal([2]int32{1, 1}))
 		})
 	})
 
 	Context("Reconcile triggers from related resources", func() {
 		It("reconciles network when a server newly references it", func() {
-			// Create a MinecraftNetwork and related MinecraftServers
-			// Verify that the network is reconciled when a server references it
-		})
-		It("reconciles network when a proxy newly references it", func() {
-			// Create a MinecraftNetwork and related MinecraftProxies
-			// Verify that the network is reconciled when a proxy references it
-		})
-		It("updates network status when related server/proxy readiness changes", func() {
-			// Create a MinecraftNetwork and related MinecraftServers/Proxies
-			// Verify that the network status is updated when related resource readiness changes
+			ctx := context.Background()
+			h := NewHarness(ctx, "default", timeout, interval)
+			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
+
+			h.CreateNetwork(networkName, CreateNetworkOpts{})
+			proxy := h.CreateProxy(networkName, "proxy", CreateProxyOpts{})
+
+			// 最初はserverがいない状態
+			h.ReconcileProxyOnce(proxy.Name)
+			h.ReconcileNetworkOnce(networkName)
+
+			Eventually(func() int32 {
+				n := &minecraftv1alpha1.MinecraftNetwork{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: networkName, Namespace: h.Namespace}, n); err != nil {
+					return -1
+				}
+				return n.Status.TotalServers
+			}, timeout, interval).Should(Equal(int32(0)))
+
+			// serverを作成してnetworkを参照させる
+			server := h.CreateServer(networkName, "server-ready", CreateServerOpts{})
+			h.SetServerReadyCondition(server.Name, true)
+			h.ReconcileNetworkOnce(networkName)
+
+			Eventually(func() int32 {
+				n := &minecraftv1alpha1.MinecraftNetwork{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: networkName, Namespace: h.Namespace}, n); err != nil {
+					return -1
+				}
+				return n.Status.TotalServers
+			}, timeout, interval).Should(Equal(int32(1)))
+			Eventually(func() bool {
+				n := &minecraftv1alpha1.MinecraftNetwork{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: networkName, Namespace: h.Namespace}, n); err != nil {
+					return false
+				}
+				return meta.IsStatusConditionTrue(n.Status.Conditions, "Ready")
+			}, timeout, interval).Should(BeTrue())
 		})
 	})
-
-	Context("Edge cases", func() {
-		It("does not fail hard when defaultServer is not found", func() {
-			// Create a MinecraftNetwork and related MinecraftServers without a valid default server
-			// Verify that the network does not fail and handles the missing default server gracefully
-		})
-		It("keeps reconciliation idempotent across repeated runs", func() {
-			// Create a MinecraftNetwork and related resources
-			// Verify that repeated reconciliations do not cause unintended side effects
-		})
-	})
-
 })
+
+func getVelocityConfigToml(ctx context.Context, h *Harness, proxyName string) string {
+	cm := &corev1.ConfigMap{}
+	if err := k8sClient.Get(ctx, types.NamespacedName{
+		Name:      proxyName + "-velocity-config",
+		Namespace: h.Namespace,
+	}, cm); err != nil {
+		return ""
+	}
+	return cm.Data["velocity.toml"]
+}
+
+func extractTryServers(toml string) []string {
+	for _, line := range strings.Split(toml, "\n") {
+		trimmedLine := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmedLine, "try =") {
+			continue
+		}
+
+		start := strings.Index(trimmedLine, "[")
+		end := strings.LastIndex(trimmedLine, "]")
+		if start == -1 || end == -1 || end < start {
+			return nil
+		}
+
+		body := strings.TrimSpace(trimmedLine[start+1 : end])
+		if body == "" {
+			return []string{}
+		}
+
+		parts := strings.Split(body, ",")
+		servers := make([]string, 0, len(parts))
+		for _, part := range parts {
+			server := strings.TrimSpace(part)
+			server = strings.Trim(server, `"'`)
+			if server != "" {
+				servers = append(servers, server)
+			}
+		}
+		return servers
+	}
+
+	return nil
+}
