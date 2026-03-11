@@ -25,8 +25,8 @@ import (
 
 // MinecraftNetworkSpec defines the desired state of MinecraftNetwork
 type MinecraftNetworkSpec struct {
-	// +required
-	DefaultServer string `json:"defaultServer"`
+	// +optional
+	DefaultServer string `json:"defaultServer,omitempty"`
 }
 
 // MinecraftNetworkStatus defines the observed state of MinecraftNetwork.
@@ -53,7 +53,7 @@ type MinecraftNetwork struct {
 	metav1.ObjectMeta `json:"metadata,omitzero"`
 
 	// spec defines the desired state of MinecraftNetwork
-	// +required
+	// +optional
 	Spec MinecraftNetworkSpec `json:"spec"`
 
 	// status defines the observed state of MinecraftNetwork
