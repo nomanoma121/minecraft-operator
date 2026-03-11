@@ -24,10 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	minecraftv1alpha1 "github.com/nomanoma121/minecraft-operator/api/v1alpha1"
 )
@@ -41,20 +38,21 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 	Context("Status aggregation", func() {
 		It("sets TotalServers and ReadyServers from related servers", func() {
 			ctx := context.Background()
-			namespace := "default"
+			h := NewHarness(ctx, "default", timeout, interval)
 			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
+			spec := DefaultServerSpec(networkName)
 
-			createNetwork(ctx, namespace, networkName)
-			server1 := createServer(ctx, namespace, networkName, "server-ready")
-			server2 := createServer(ctx, namespace, networkName, "server-not-ready")
+			h.CreateNetwork(networkName)
+			server1 := h.CreateServer("server-ready", spec, nil)
+			server2 := h.CreateServer("server-not-ready", spec, nil)
 
-			setServerReadyCondition(ctx, namespace, server1.Name, true, timeout, interval)
-			setServerReadyCondition(ctx, namespace, server2.Name, false, timeout, interval)
-			reconcileNetworkOnce(ctx, namespace, networkName)
+			h.SetServerReadyCondition(server1.Name, true)
+			h.SetServerReadyCondition(server2.Name, false)
+			h.ReconcileNetworkOnce(networkName)
 
 			Eventually(func() [2]int32 {
 				n := &minecraftv1alpha1.MinecraftNetwork{}
-				if err := k8sClient.Get(ctx, types.NamespacedName{Name: networkName, Namespace: namespace}, n); err != nil {
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: networkName, Namespace: h.Namespace}, n); err != nil {
 					return [2]int32{-1, -1}
 				}
 				return [2]int32{n.Status.TotalServers, n.Status.ReadyServers}
@@ -62,20 +60,20 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 		})
 		It("sets ProxyReady true when at least one related proxy is ready", func() {
 			ctx := context.Background()
-			namespace := "default"
+			h := NewHarness(ctx, "default", timeout, interval)
 			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
 
-			createNetwork(ctx, namespace, networkName)
-			proxy1 := createProxy(ctx, namespace, networkName, "proxy-ready")
-			proxy2 := createProxy(ctx, namespace, networkName, "proxy-not-ready")
+			h.CreateNetwork(networkName)
+			proxy1 := h.CreateProxy(networkName, "proxy-ready")
+			proxy2 := h.CreateProxy(networkName, "proxy-not-ready")
 
-			setProxyReadyCondition(ctx, namespace, proxy1.Name, true, timeout, interval)
-			setProxyReadyCondition(ctx, namespace, proxy2.Name, false, timeout, interval)
-			reconcileNetworkOnce(ctx, namespace, networkName)
+			h.SetProxyReadyCondition(proxy1.Name, true)
+			h.SetProxyReadyCondition(proxy2.Name, false)
+			h.ReconcileNetworkOnce(networkName)
 
 			Eventually(func() bool {
 				n := &minecraftv1alpha1.MinecraftNetwork{}
-				if err := k8sClient.Get(ctx, types.NamespacedName{Name: networkName, Namespace: namespace}, n); err != nil {
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: networkName, Namespace: h.Namespace}, n); err != nil {
 					return false
 				}
 				return n.Status.ProxyReady
@@ -83,20 +81,21 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 		})
 		It("sets Ready condition true when ProxyReady=true and ReadyServers>0", func() {
 			ctx := context.Background()
-			namespace := "default"
+			h := NewHarness(ctx, "default", timeout, interval)
 			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
+			spec := DefaultServerSpec(networkName)
 
-			createNetwork(ctx, namespace, networkName)
-			proxy := createProxy(ctx, namespace, networkName, "proxy-ready")
-			server := createServer(ctx, namespace, networkName, "server-ready")
+			h.CreateNetwork(networkName)
+			proxy := h.CreateProxy(networkName, "proxy-ready")
+			server := h.CreateServer("server-ready", spec, nil)
 
-			setProxyReadyCondition(ctx, namespace, proxy.Name, true, timeout, interval)
-			setServerReadyCondition(ctx, namespace, server.Name, true, timeout, interval)
-			reconcileNetworkOnce(ctx, namespace, networkName)
+			h.SetProxyReadyCondition(proxy.Name, true)
+			h.SetServerReadyCondition(server.Name, true)
+			h.ReconcileNetworkOnce(networkName)
 
 			Eventually(func() bool {
 				n := &minecraftv1alpha1.MinecraftNetwork{}
-				if err := k8sClient.Get(ctx, types.NamespacedName{Name: networkName, Namespace: namespace}, n); err != nil {
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: networkName, Namespace: h.Namespace}, n); err != nil {
 					return false
 				}
 				return meta.IsStatusConditionTrue(n.Status.Conditions, "Ready")
@@ -104,20 +103,21 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 		})
 		It("sets Ready condition false when either proxy/server readiness is insufficient", func() {
 			ctx := context.Background()
-			namespace := "default"
+			h := NewHarness(ctx, "default", timeout, interval)
 			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
+			spec := DefaultServerSpec(networkName)
 
-			createNetwork(ctx, namespace, networkName)
-			proxy := createProxy(ctx, namespace, networkName, "proxy-not-ready")
-			server := createServer(ctx, namespace, networkName, "server-not-ready")
+			h.CreateNetwork(networkName)
+			proxy := h.CreateProxy(networkName, "proxy-not-ready")
+			server := h.CreateServer("server-not-ready", spec, nil)
 
-			setProxyReadyCondition(ctx, namespace, proxy.Name, false, timeout, interval)
-			setServerReadyCondition(ctx, namespace, server.Name, false, timeout, interval)
-			reconcileNetworkOnce(ctx, namespace, networkName)
+			h.SetProxyReadyCondition(proxy.Name, false)
+			h.SetServerReadyCondition(server.Name, false)
+			h.ReconcileNetworkOnce(networkName)
 
 			Eventually(func() bool {
 				n := &minecraftv1alpha1.MinecraftNetwork{}
-				if err := k8sClient.Get(ctx, types.NamespacedName{Name: networkName, Namespace: namespace}, n); err != nil {
+				if err := k8sClient.Get(ctx, types.NamespacedName{Name: networkName, Namespace: h.Namespace}, n); err != nil {
 					return false
 				}
 				return meta.IsStatusConditionFalse(n.Status.Conditions, "Ready")
@@ -185,150 +185,3 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 	})
 
 })
-
-func createNetwork(ctx context.Context, namespace string, networkName string) {
-	network := &minecraftv1alpha1.MinecraftNetwork{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      networkName,
-			Namespace: namespace,
-		},
-	}
-	Expect(k8sClient.Create(ctx, network)).To(Succeed())
-	DeferCleanup(func() {
-		Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, network))).To(Succeed())
-	})
-}
-
-func createServer(
-	ctx context.Context,
-	namespace string,
-	networkName string,
-	namePrefix string,
-) *minecraftv1alpha1.MinecraftServer {
-	server := &minecraftv1alpha1.MinecraftServer{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-%d", namePrefix, time.Now().UnixNano()),
-			Namespace: namespace,
-		},
-		Spec: minecraftv1alpha1.MinecraftServerSpec{
-			NetworkRef: networkName,
-			Type:       minecraftv1alpha1.MinecraftServerTypePaper,
-			Version:    "1.21.4",
-			EULA:       true,
-		},
-	}
-	Expect(k8sClient.Create(ctx, server)).To(Succeed())
-	DeferCleanup(func() {
-		Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, server))).To(Succeed())
-	})
-
-	return server
-}
-
-func createProxy(
-	ctx context.Context,
-	namespace string,
-	networkName string,
-	namePrefix string,
-) *minecraftv1alpha1.MinecraftProxy {
-	proxy := &minecraftv1alpha1.MinecraftProxy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-%d", namePrefix, time.Now().UnixNano()),
-			Namespace: namespace,
-		},
-		Spec: minecraftv1alpha1.MinecraftProxySpec{
-			NetworkRef: networkName,
-			Type:       minecraftv1alpha1.MinecraftProxyTypeVelocity,
-			Version:    "latest",
-			Replicas:   1,
-		},
-	}
-	Expect(k8sClient.Create(ctx, proxy)).To(Succeed())
-	DeferCleanup(func() {
-		Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, proxy))).To(Succeed())
-	})
-
-	return proxy
-}
-
-func setServerReadyCondition(
-	ctx context.Context,
-	namespace string,
-	serverName string,
-	ready bool,
-	timeout time.Duration,
-	interval time.Duration,
-) {
-	Eventually(func() error {
-		server := &minecraftv1alpha1.MinecraftServer{}
-		if err := k8sClient.Get(ctx, types.NamespacedName{Name: serverName, Namespace: namespace}, server); err != nil {
-			return err
-		}
-
-		status := metav1.ConditionFalse
-		reason := "TestNotReady"
-		message := "server is not ready for aggregation test"
-		if ready {
-			status = metav1.ConditionTrue
-			reason = "TestReady"
-			message = "server is ready for aggregation test"
-		}
-
-		meta.SetStatusCondition(&server.Status.Conditions, metav1.Condition{
-			Type:               "Ready",
-			Status:             status,
-			Reason:             reason,
-			Message:            message,
-			ObservedGeneration: server.Generation,
-		})
-
-		return k8sClient.Status().Update(ctx, server)
-	}, timeout, interval).Should(Succeed())
-}
-
-func setProxyReadyCondition(
-	ctx context.Context,
-	namespace string,
-	proxyName string,
-	ready bool,
-	timeout time.Duration,
-	interval time.Duration,
-) {
-	Eventually(func() error {
-		proxy := &minecraftv1alpha1.MinecraftProxy{}
-		if err := k8sClient.Get(ctx, types.NamespacedName{Name: proxyName, Namespace: namespace}, proxy); err != nil {
-			return err
-		}
-
-		status := metav1.ConditionFalse
-		reason := "TestNotReady"
-		message := "proxy is not ready for aggregation test"
-		if ready {
-			status = metav1.ConditionTrue
-			reason = "TestReady"
-			message = "proxy is ready for aggregation test"
-		}
-
-		meta.SetStatusCondition(&proxy.Status.Conditions, metav1.Condition{
-			Type:               "Ready",
-			Status:             status,
-			Reason:             reason,
-			Message:            message,
-			ObservedGeneration: proxy.Generation,
-		})
-
-		return k8sClient.Status().Update(ctx, proxy)
-	}, timeout, interval).Should(Succeed())
-}
-
-func reconcileNetworkOnce(ctx context.Context, namespace string, networkName string) {
-	reconciler := &MinecraftNetworkReconciler{
-		Client: k8sClient,
-		Scheme: k8sClient.Scheme(),
-	}
-
-	_, err := reconciler.Reconcile(ctx, reconcile.Request{
-		NamespacedName: types.NamespacedName{Name: networkName, Namespace: namespace},
-	})
-	Expect(err).NotTo(HaveOccurred())
-}

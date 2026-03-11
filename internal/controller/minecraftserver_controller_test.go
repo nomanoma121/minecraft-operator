@@ -41,24 +41,16 @@ var _ = Describe("MinecraftServer Controller", func() {
 		namespace   string
 		networkName string
 		serverName  string
+		h           *Harness
 	)
 
 	BeforeEach(func() {
 		namespace = "default"
 		networkName = fmt.Sprintf("test-network-%d", time.Now().UnixNano())
 		serverName = fmt.Sprintf("test-server-%d", time.Now().UnixNano())
+		h = NewHarness(ctx, namespace, timeout, interval)
 
-		// Create the MinecraftNetwork first
-		network := &minecraftv1alpha1.MinecraftNetwork{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      networkName,
-				Namespace: namespace,
-			},
-			Spec: minecraftv1alpha1.MinecraftNetworkSpec{
-				DefaultServer: serverName,
-			},
-		}
-		Expect(k8sClient.Create(ctx, network)).To(Succeed())
+		h.CreateNetworkWithDefault(networkName, serverName)
 	})
 
 	Context("When creating a MinecraftServer", func() {
@@ -78,6 +70,7 @@ var _ = Describe("MinecraftServer Controller", func() {
 				},
 			}
 			Expect(k8sClient.Create(ctx, server)).To(Succeed())
+			h.ReconcileServerOnce(serverName)
 
 			// Verify StatefulSet is created
 			sts := &appsv1.StatefulSet{}
@@ -187,6 +180,7 @@ var _ = Describe("MinecraftServer Controller", func() {
 				},
 			}
 			Expect(k8sClient.Create(ctx, server)).To(Succeed())
+			h.ReconcileServerOnce(orphanName)
 
 			Eventually(func() bool {
 				s := &minecraftv1alpha1.MinecraftServer{}
@@ -222,6 +216,7 @@ var _ = Describe("MinecraftServer Controller", func() {
 				},
 			}
 			Expect(k8sClient.Create(ctx, server)).To(Succeed())
+			h.ReconcileServerOnce(name)
 
 			// Wait for StatefulSet to be created
 			sts := &appsv1.StatefulSet{}
@@ -243,6 +238,7 @@ var _ = Describe("MinecraftServer Controller", func() {
 				s.Spec.Version = "1.21.4"
 				return k8sClient.Update(ctx, s)
 			}, timeout, interval).Should(Succeed())
+			h.ReconcileServerOnce(name)
 
 			// Verify image is updated
 			Eventually(func() string {

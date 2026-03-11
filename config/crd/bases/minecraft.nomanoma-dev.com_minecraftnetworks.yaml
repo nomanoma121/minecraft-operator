@@ -43,8 +43,6 @@ spec:
             properties:
               defaultServer:
                 type: string
-            required:
-            - defaultServer
             type: object
           status:
             description: status defines the observed state of MinecraftNetwork
@@ -117,8 +115,6 @@ spec:
                 format: int32
                 type: integer
             type: object
-        required:
-        - spec
         type: object
     served: true
     storage: true

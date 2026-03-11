@@ -39,22 +39,15 @@ var _ = Describe("MinecraftProxy Controller", func() {
 	var (
 		namespace   string
 		networkName string
+		h           *Harness
 	)
 
 	BeforeEach(func() {
 		namespace = "default"
 		networkName = fmt.Sprintf("test-network-%d", time.Now().UnixNano())
+		h = NewHarness(ctx, namespace, timeout, interval)
 
-		network := &minecraftv1alpha1.MinecraftNetwork{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      networkName,
-				Namespace: namespace,
-			},
-			Spec: minecraftv1alpha1.MinecraftNetworkSpec{
-				DefaultServer: "lobby",
-			},
-		}
-		Expect(k8sClient.Create(ctx, network)).To(Succeed())
+		h.CreateNetworkWithDefault(networkName, "lobby")
 	})
 
 	Context("When creating a MinecraftProxy", func() {
@@ -74,6 +67,7 @@ var _ = Describe("MinecraftProxy Controller", func() {
 				},
 			}
 			Expect(k8sClient.Create(ctx, proxy)).To(Succeed())
+			h.ReconcileProxyOnce(proxyName)
 
 			By("Checking Deployment spec")
 			deploy := &appsv1.Deployment{}
@@ -152,6 +146,7 @@ var _ = Describe("MinecraftProxy Controller", func() {
 				},
 			}
 			Expect(k8sClient.Create(ctx, proxy)).To(Succeed())
+			h.ReconcileProxyOnce(proxyName)
 
 			Eventually(func() bool {
 				p := &minecraftv1alpha1.MinecraftProxy{}
