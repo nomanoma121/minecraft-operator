@@ -33,9 +33,9 @@ const (
 type MinecraftServerWorldLevel string
 
 const (
-	MinecraftServerWorldLevelNormal MinecraftServerWorldLevel = "Normal"
-	MinecraftServerWorldLevelFlat   MinecraftServerWorldLevel = "Flat"
-	MinecraftServerWorldLevelAmplified   MinecraftServerWorldLevel = "Amplified"
+	MinecraftServerWorldLevelNormal    MinecraftServerWorldLevel = "Normal"
+	MinecraftServerWorldLevelFlat      MinecraftServerWorldLevel = "Flat"
+	MinecraftServerWorldLevelAmplified MinecraftServerWorldLevel = "Amplified"
 )
 
 type MinecraftServerDifficulty string
@@ -54,15 +54,15 @@ type MinecraftServerSpec struct {
 	NetworkRef string `json:"networkRef"`
 	// +kubebuilder:validation:Enum=Paper;Vanilla
 	// +required
-	Type       MinecraftServerType       `json:"type"`
+	Type MinecraftServerType `json:"type"`
 	// +kubebuilder:validation:MinLength=1
 	// +required
-	Version    string                    `json:"version"`
+	Version string `json:"version"`
 	// +required
-	EULA       bool                      `json:"eula"`
+	EULA bool `json:"eula"`
 	// +optional
 	// +kubebuilder:validation:MinItems=1
-	WhiteList  []string                  `json:"whiteList,omitempty"`
+	WhiteList []string `json:"whiteList,omitempty"`
 	// +kubebuilder:validation:Enum=Normal;Flat;Amplified
 	// +optional
 	WorldLevel MinecraftServerWorldLevel `json:"worldLevel,omitempty"`

@@ -36,13 +36,13 @@ type MinecraftProxySpec struct {
 	NetworkRef string `json:"networkRef"`
 	// +kubebuilder:validation:MinLength=1
 	// +required
-	Version  string             `json:"version"`
+	Version string `json:"version"`
 	// +kubebuilder:validation:Enum=Velocity
 	// +required
-	Type     MinecraftProxyType `json:"type"`
+	Type MinecraftProxyType `json:"type"`
 	// +kubebuilder:default=1
 	// +optional
-	Replicas int32              `json:"replicas,omitempty"`
+	Replicas int32 `json:"replicas,omitempty"`
 }
 
 // MinecraftProxyStatus defines the observed state of MinecraftProxy.
