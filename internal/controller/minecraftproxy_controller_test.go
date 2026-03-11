@@ -36,22 +36,12 @@ var _ = Describe("MinecraftProxy Controller", func() {
 		interval = 250 * time.Millisecond
 	)
 
-	var (
-		namespace   string
-		networkName string
-		h           *Harness
-	)
-
-	BeforeEach(func() {
-		namespace = "default"
-		networkName = fmt.Sprintf("test-network-%d", time.Now().UnixNano())
-		h = NewHarness(ctx, namespace, timeout, interval)
-
-		h.CreateNetwork(networkName, CreateNetworkOpts{})
-	})
-
-	Context("When creating a MinecraftProxy", func() {
-		It("Should create Deployment, Service and ConfigMap for Velocity", func() {
+	Context("Resource reconciliation", func() {
+		It("creates Deployment/Service/ConfigMap and sets expected spec fields", func() {
+			namespace := "default"
+			h := NewHarness(ctx, namespace, timeout, interval)
+			networkName := fmt.Sprintf("test-network-%d", time.Now().UnixNano())
+			h.CreateNetwork(networkName, CreateNetworkOpts{})
 			proxyName := fmt.Sprintf("test-proxy-%d", time.Now().UnixNano())
 
 			proxy := &minecraftv1alpha1.MinecraftProxy{
@@ -69,7 +59,6 @@ var _ = Describe("MinecraftProxy Controller", func() {
 			Expect(k8sClient.Create(ctx, proxy)).To(Succeed())
 			h.ReconcileProxyOnce(proxyName)
 
-			By("Checking Deployment spec")
 			deploy := &appsv1.Deployment{}
 			Eventually(func() error {
 				return k8sClient.Get(ctx, types.NamespacedName{Name: proxyName, Namespace: namespace}, deploy)
@@ -87,7 +76,6 @@ var _ = Describe("MinecraftProxy Controller", func() {
 				Value: "VELOCITY",
 			}))
 
-			By("Checking ConfigMap for velocity.toml")
 			cm := &corev1.ConfigMap{}
 			Eventually(func() error {
 				return k8sClient.Get(ctx, types.NamespacedName{
@@ -97,7 +85,6 @@ var _ = Describe("MinecraftProxy Controller", func() {
 			}, timeout, interval).Should(Succeed())
 			Expect(cm.Data).To(HaveKey("velocity.toml"))
 
-			By("Checking Service spec")
 			svc := &corev1.Service{}
 			Eventually(func() error {
 				return k8sClient.Get(ctx, types.NamespacedName{Name: proxyName, Namespace: namespace}, svc)
@@ -106,7 +93,6 @@ var _ = Describe("MinecraftProxy Controller", func() {
 			Expect(svc.Spec.Ports).To(HaveLen(1))
 			Expect(svc.Spec.Ports[0].Port).To(Equal(int32(25577)))
 
-			By("Checking status address")
 			Eventually(func() string {
 				p := &minecraftv1alpha1.MinecraftProxy{}
 				if err := k8sClient.Get(ctx, types.NamespacedName{Name: proxyName, Namespace: namespace}, p); err != nil {
@@ -115,7 +101,6 @@ var _ = Describe("MinecraftProxy Controller", func() {
 				return p.Status.Address
 			}, timeout, interval).Should(Equal(fmt.Sprintf("%s.%s.svc.cluster.local:25577", proxyName, namespace)))
 
-			By("Checking owner reference on Proxy (Network owns Proxy)")
 			Eventually(func() bool {
 				p := &minecraftv1alpha1.MinecraftProxy{}
 				if err := k8sClient.Get(ctx, types.NamespacedName{Name: proxyName, Namespace: namespace}, p); err != nil {
@@ -131,8 +116,10 @@ var _ = Describe("MinecraftProxy Controller", func() {
 		})
 	})
 
-	Context("When networkRef references a non-existent Network", func() {
-		It("Should set Ready condition to False with NetworkNotFound reason", func() {
+	Context("Network reference handling", func() {
+		It("sets Ready=False with NetworkNotFound when referenced network does not exist", func() {
+			namespace := "default"
+			h := NewHarness(ctx, namespace, timeout, interval)
 			proxyName := fmt.Sprintf("orphan-proxy-%d", time.Now().UnixNano())
 			proxy := &minecraftv1alpha1.MinecraftProxy{
 				ObjectMeta: metav1.ObjectMeta{
