@@ -17,68 +17,243 @@ limitations under the License.
 package controller
 
 import (
-	"context"
+	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	minecraftv1alpha1 "github.com/nomanoma121/minecraft-operator/api/v1alpha1"
 )
 
 var _ = Describe("MinecraftServer Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+	const (
+		timeout  = 30 * time.Second
+		interval = 250 * time.Millisecond
+	)
 
-		ctx := context.Background()
+	var (
+		namespace   string
+		networkName string
+		serverName  string
+	)
 
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+	BeforeEach(func() {
+		namespace = "default"
+		networkName = fmt.Sprintf("test-network-%d", time.Now().UnixNano())
+		serverName = fmt.Sprintf("test-server-%d", time.Now().UnixNano())
+
+		// Create the MinecraftNetwork first
+		network := &minecraftv1alpha1.MinecraftNetwork{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      networkName,
+				Namespace: namespace,
+			},
+			Spec: minecraftv1alpha1.MinecraftNetworkSpec{
+				DefaultServer: serverName,
+			},
 		}
-		minecraftserver := &minecraftv1alpha1.MinecraftServer{}
+		Expect(k8sClient.Create(ctx, network)).To(Succeed())
+	})
 
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind MinecraftServer")
-			err := k8sClient.Get(ctx, typeNamespacedName, minecraftserver)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &minecraftv1alpha1.MinecraftServer{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
-					},
-					// TODO(user): Specify other spec details if needed.
+	Context("When creating a MinecraftServer", func() {
+		It("Should create a StatefulSet and Service", func() {
+			server := &minecraftv1alpha1.MinecraftServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      serverName,
+					Namespace: namespace,
+				},
+				Spec: minecraftv1alpha1.MinecraftServerSpec{
+					NetworkRef: networkName,
+					Type:       minecraftv1alpha1.MinecraftServerTypePaper,
+					Version:    "1.19.4",
+					EULA:       true,
+					Difficulty: minecraftv1alpha1.MinecraftServerDifficultyNormal,
+					WorldLevel: minecraftv1alpha1.MinecraftServerWorldLevelNormal,
+				},
+			}
+			Expect(k8sClient.Create(ctx, server)).To(Succeed())
+
+			// Verify StatefulSet is created
+			sts := &appsv1.StatefulSet{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      serverName,
+					Namespace: namespace,
+				}, sts)
+			}, timeout, interval).Should(Succeed())
+
+			By("Checking StatefulSet spec")
+			Expect(*sts.Spec.Replicas).To(Equal(int32(1)))
+			Expect(sts.Spec.Template.Spec.Containers).To(HaveLen(1))
+
+			container := sts.Spec.Template.Spec.Containers[0]
+			Expect(container.Image).To(Equal("itzg/minecraft-server:1.19.4"))
+			Expect(container.Ports).To(ContainElement(corev1.ContainerPort{
+				Name:          "minecraft",
+				ContainerPort: 25565,
+				Protocol:      corev1.ProtocolTCP,
+			}))
+
+			By("Checking environment variables")
+			envMap := make(map[string]string)
+			for _, e := range container.Env {
+				envMap[e.Name] = e.Value
+			}
+			Expect(envMap["TYPE"]).To(Equal("Paper"))
+			Expect(envMap["VERSION"]).To(Equal("1.19.4"))
+			Expect(envMap["EULA"]).To(Equal("true"))
+			Expect(envMap["DIFFICULTY"]).To(Equal("Normal"))
+			Expect(envMap["LEVEL_TYPE"]).To(Equal("Normal"))
+
+			By("Checking VolumeClaimTemplates")
+			Expect(sts.Spec.VolumeClaimTemplates).To(HaveLen(1))
+			Expect(sts.Spec.VolumeClaimTemplates[0].Name).To(Equal("data"))
+
+			// Verify Service is created
+			svc := &corev1.Service{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name:      serverName,
+					Namespace: namespace,
+				}, svc)
+			}, timeout, interval).Should(Succeed())
+
+			By("Checking Service spec")
+			Expect(svc.Spec.Type).To(Equal(corev1.ServiceTypeClusterIP))
+			Expect(svc.Spec.Ports[0].Port).To(Equal(int32(25565)))
+
+			// Verify owner reference: Network → Server
+			By("Checking owner reference on Server (Network owns Server)")
+			updatedServer := &minecraftv1alpha1.MinecraftServer{}
+			Eventually(func() bool {
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      serverName,
+					Namespace: namespace,
+				}, updatedServer); err != nil {
+					return false
 				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			}
-		})
+				for _, ref := range updatedServer.OwnerReferences {
+					if ref.Kind == "MinecraftNetwork" && ref.Name == networkName {
+						return true
+					}
+				}
+				return false
+			}, timeout, interval).Should(BeTrue())
 
-		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &minecraftv1alpha1.MinecraftServer{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("Cleanup the specific resource instance MinecraftServer")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
-		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &MinecraftServerReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
+			// Verify owner reference: Server → StatefulSet
+			By("Checking owner reference on StatefulSet (Server owns StatefulSet)")
+			for _, ref := range sts.OwnerReferences {
+				if ref.Kind == "MinecraftServer" {
+					Expect(ref.Name).To(Equal(serverName))
+				}
 			}
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
-			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+			// Verify status address
+			By("Checking status address")
+			Eventually(func() string {
+				s := &minecraftv1alpha1.MinecraftServer{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      serverName,
+					Namespace: namespace,
+				}, s); err != nil {
+					return ""
+				}
+				return s.Status.Address
+			}, timeout, interval).Should(Equal(
+				fmt.Sprintf("%s.%s.svc.cluster.local:25565", serverName, namespace),
+			))
+		})
+	})
+
+	Context("When networkRef references a non-existent Network", func() {
+		It("Should set Ready condition to False with NetworkNotFound reason", func() {
+			orphanName := fmt.Sprintf("orphan-server-%d", time.Now().UnixNano())
+			server := &minecraftv1alpha1.MinecraftServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      orphanName,
+					Namespace: namespace,
+				},
+				Spec: minecraftv1alpha1.MinecraftServerSpec{
+					NetworkRef: "non-existent-network",
+					Type:       minecraftv1alpha1.MinecraftServerTypePaper,
+					Version:    "1.19.4",
+					EULA:       true,
+				},
+			}
+			Expect(k8sClient.Create(ctx, server)).To(Succeed())
+
+			Eventually(func() bool {
+				s := &minecraftv1alpha1.MinecraftServer{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      orphanName,
+					Namespace: namespace,
+				}, s); err != nil {
+					return false
+				}
+				for _, c := range s.Status.Conditions {
+					if c.Type == "Ready" && c.Status == metav1.ConditionFalse && c.Reason == "NetworkNotFound" {
+						return true
+					}
+				}
+				return false
+			}, timeout, interval).Should(BeTrue())
+		})
+	})
+
+	Context("When updating spec.version", func() {
+		It("Should update the StatefulSet image", func() {
+			name := fmt.Sprintf("update-server-%d", time.Now().UnixNano())
+			server := &minecraftv1alpha1.MinecraftServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: namespace,
+				},
+				Spec: minecraftv1alpha1.MinecraftServerSpec{
+					NetworkRef: networkName,
+					Type:       minecraftv1alpha1.MinecraftServerTypePaper,
+					Version:    "1.19.4",
+					EULA:       true,
+				},
+			}
+			Expect(k8sClient.Create(ctx, server)).To(Succeed())
+
+			// Wait for StatefulSet to be created
+			sts := &appsv1.StatefulSet{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name: name, Namespace: namespace,
+				}, sts)
+			}, timeout, interval).Should(Succeed())
+			Expect(sts.Spec.Template.Spec.Containers[0].Image).To(Equal("itzg/minecraft-server:1.19.4"))
+
+			// Update version
+			Eventually(func() error {
+				s := &minecraftv1alpha1.MinecraftServer{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name: name, Namespace: namespace,
+				}, s); err != nil {
+					return err
+				}
+				s.Spec.Version = "1.21.4"
+				return k8sClient.Update(ctx, s)
+			}, timeout, interval).Should(Succeed())
+
+			// Verify image is updated
+			Eventually(func() string {
+				s := &appsv1.StatefulSet{}
+				if err := k8sClient.Get(ctx, types.NamespacedName{
+					Name: name, Namespace: namespace,
+				}, s); err != nil {
+					return ""
+				}
+				return s.Spec.Template.Spec.Containers[0].Image
+			}, timeout, interval).Should(Equal("itzg/minecraft-server:1.21.4"))
 		})
 	})
 })
