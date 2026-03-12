@@ -74,7 +74,7 @@ var _ = Describe("MinecraftServer Controller", func() {
 			Expect(sts.Spec.Template.Spec.Containers).To(HaveLen(1))
 
 			container := sts.Spec.Template.Spec.Containers[0]
-			Expect(container.Image).To(Equal("itzg/minecraft-server:1.19.4"))
+			Expect(container.Image).To(Equal("itzg/minecraft-server:latest"))
 			Expect(container.Ports).To(ContainElement(corev1.ContainerPort{
 				Name:          "minecraft",
 				ContainerPort: 25565,
@@ -181,7 +181,7 @@ var _ = Describe("MinecraftServer Controller", func() {
 	})
 
 	Context("Spec updates", func() {
-		It("updates StatefulSet image when spec.version changes", func() {
+		It("updates VERSION env when spec.version changes", func() {
 			namespace := "default"
 			h := NewHarness(ctx, namespace, timeout, interval)
 			networkName := fmt.Sprintf("test-network-%d", time.Now().UnixNano())
@@ -208,7 +208,7 @@ var _ = Describe("MinecraftServer Controller", func() {
 					Name: name, Namespace: namespace,
 				}, sts)
 			}, timeout, interval).Should(Succeed())
-			Expect(sts.Spec.Template.Spec.Containers[0].Image).To(Equal("itzg/minecraft-server:1.19.4"))
+			Expect(sts.Spec.Template.Spec.Containers[0].Image).To(Equal("itzg/minecraft-server:latest"))
 
 			Eventually(func() error {
 				s := &minecraftv1alpha1.MinecraftServer{}
@@ -229,8 +229,13 @@ var _ = Describe("MinecraftServer Controller", func() {
 				}, s); err != nil {
 					return ""
 				}
-				return s.Spec.Template.Spec.Containers[0].Image
-			}, timeout, interval).Should(Equal("itzg/minecraft-server:1.21.4"))
+				for _, env := range s.Spec.Template.Spec.Containers[0].Env {
+					if env.Name == "VERSION" {
+						return env.Value
+					}
+				}
+				return ""
+			}, timeout, interval).Should(Equal("1.21.4"))
 		})
 	})
 })

@@ -143,9 +143,24 @@ func (r *MinecraftProxyReconciler) reconcileConfigMap(ctx context.Context, proxy
 		if cm.Data == nil {
 			cm.Data = map[string]string{}
 		}
-		// Initialize with empty velocity.toml if not set (Network controller will update it)
+		// Initialize with a minimal valid velocity.toml (Network controller will overwrite it)
 		if _, ok := cm.Data["velocity.toml"]; !ok {
-			cm.Data["velocity.toml"] = "[servers]\n\ntry = []\n"
+			cm.Data["velocity.toml"] = strings.Join([]string{
+				`config-version = "2.7"`,
+				`bind = "0.0.0.0:25577"`,
+				`motd = "<#09add3>Minecraft Network"`,
+				`show-max-players = 500`,
+				`online-mode = false`,
+				`player-info-forwarding-mode = "none"`,
+				`forwarding-secret-file = "forwarding.secret"`,
+				"",
+				"[servers]",
+				"",
+				"try = []",
+				"",
+				"[forced-hosts]",
+				"",
+			}, "\n")
 		}
 		return controllerutil.SetControllerReference(proxy, cm, r.Scheme)
 	}); err != nil {
@@ -239,6 +254,7 @@ func (r *MinecraftProxyReconciler) buildDeployment(proxy *minecraftv1alpha1.Mine
 
 	env := []corev1.EnvVar{
 		{Name: "TYPE", Value: strings.ToUpper(string(proxy.Spec.Type))},
+		{Name: "VELOCITY_VERSION", Value: proxy.Spec.Version},
 	}
 
 	deploy.Labels = labels
@@ -255,7 +271,7 @@ func (r *MinecraftProxyReconciler) buildDeployment(proxy *minecraftv1alpha1.Mine
 				Containers: []corev1.Container{
 					{
 						Name:  "minecraft-proxy",
-						Image: fmt.Sprintf("itzg/mc-proxy:%s", proxy.Spec.Version),
+						Image: "itzg/mc-proxy:latest",
 						Ports: []corev1.ContainerPort{
 							{
 								Name:          "proxy",
@@ -267,8 +283,14 @@ func (r *MinecraftProxyReconciler) buildDeployment(proxy *minecraftv1alpha1.Mine
 						VolumeMounts: []corev1.VolumeMount{
 							{
 								Name:      "velocity-config",
-								MountPath: "/server/velocity.toml",
+								MountPath: "/config/velocity.toml",
 								SubPath:   "velocity.toml",
+							},
+							{
+								Name:      "forwarding-secret",
+								MountPath: "/config/forwarding.secret",
+								SubPath:   "forwarding.secret",
+								ReadOnly:  true,
 							},
 						},
 					},
@@ -281,6 +303,14 @@ func (r *MinecraftProxyReconciler) buildDeployment(proxy *minecraftv1alpha1.Mine
 								LocalObjectReference: corev1.LocalObjectReference{
 									Name: cm.Name,
 								},
+							},
+						},
+					},
+					{
+						Name: "forwarding-secret",
+						VolumeSource: corev1.VolumeSource{
+							Secret: &corev1.SecretVolumeSource{
+								SecretName: proxy.Spec.NetworkRef + "-forwarding-secret",
 							},
 						},
 					},

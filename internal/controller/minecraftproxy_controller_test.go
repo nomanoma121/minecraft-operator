@@ -75,6 +75,10 @@ var _ = Describe("MinecraftProxy Controller", func() {
 				Name:  "TYPE",
 				Value: "VELOCITY",
 			}))
+			Expect(container.Env).To(ContainElement(corev1.EnvVar{
+				Name:  "VELOCITY_VERSION",
+				Value: "latest",
+			}))
 
 			cm := &corev1.ConfigMap{}
 			Eventually(func() error {

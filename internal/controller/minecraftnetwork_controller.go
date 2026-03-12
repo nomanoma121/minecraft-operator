@@ -18,6 +18,8 @@ package controller
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
@@ -49,6 +51,7 @@ type MinecraftNetworkReconciler struct {
 // +kubebuilder:rbac:groups=minecraft.nomanoma-dev.com,resources=minecraftservers,verbs=get;list;watch
 // +kubebuilder:rbac:groups=minecraft.nomanoma-dev.com,resources=minecraftproxies,verbs=get;list;watch
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -80,6 +83,10 @@ func (r *MinecraftNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, err
 	}
 
+	if err := r.reconcileForwardingSecret(ctx, &network); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	if err := r.reconcileVelocityConfigMaps(ctx, &network, servers, proxies); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -90,6 +97,48 @@ func (r *MinecraftNetworkReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	log.Info("Reconciled MinecraftNetwork", "name", network.Name, "servers", len(servers), "proxies", len(proxies))
 	return ctrl.Result{}, nil
+}
+
+func (r *MinecraftNetworkReconciler) reconcileForwardingSecret(
+	ctx context.Context,
+	network *minecraftv1alpha1.MinecraftNetwork,
+) error {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      network.Name + "-forwarding-secret",
+			Namespace: network.Namespace,
+		},
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		if secret.Type == "" {
+			secret.Type = corev1.SecretTypeOpaque
+		}
+		if secret.StringData == nil {
+			secret.StringData = map[string]string{}
+		}
+
+		_, hasData := secret.Data["forwarding.secret"]
+		_, hasStringData := secret.StringData["forwarding.secret"]
+		if !hasData && !hasStringData {
+			generated, genErr := generateForwardingSecret()
+			if genErr != nil {
+				return genErr
+			}
+			secret.StringData["forwarding.secret"] = generated
+		}
+
+		return controllerutil.SetControllerReference(network, secret, r.Scheme)
+	})
+	return err
+}
+
+func generateForwardingSecret() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
 }
 
 func (r *MinecraftNetworkReconciler) listRelatedServers(
@@ -218,7 +267,17 @@ func renderVelocityToml(network *minecraftv1alpha1.MinecraftNetwork, servers []m
 		return sortedServers[i].Name < sortedServers[j].Name
 	})
 
-	lines := []string{"[servers]"}
+	lines := []string{
+		`config-version = "2.7"`,
+		`bind = "0.0.0.0:25577"`,
+		`motd = "<#09add3>Minecraft Network"`,
+		`show-max-players = 500`,
+		`online-mode = true`,
+		`player-info-forwarding-mode = "modern"`,
+		`forwarding-secret-file = "/config/forwarding.secret"`,
+		"",
+		"[servers]",
+	}
 	for i := range sortedServers {
 		serverName := sortedServers[i].Name
 		address := fmt.Sprintf("%s.%s.svc.cluster.local:25565", serverName, network.Namespace)
@@ -233,6 +292,8 @@ func renderVelocityToml(network *minecraftv1alpha1.MinecraftNetwork, servers []m
 
 	lines = append(lines, "")
 	lines = append(lines, fmt.Sprintf("try = [%s]", strings.Join(quotedTry, ", ")))
+	lines = append(lines, "")
+	lines = append(lines, "[forced-hosts]")
 
 	return strings.Join(lines, "\n") + "\n"
 }

@@ -50,6 +50,7 @@ type MinecraftServerReconciler struct {
 // +kubebuilder:rbac:groups=minecraft.nomanoma-dev.com,resources=minecraftnetworks,verbs=get;list;watch
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 
 func (r *MinecraftServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
@@ -74,7 +75,12 @@ func (r *MinecraftServerReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
-	sts, err := r.reconcileStatefulSet(ctx, &server)
+	configMapName, err := r.reconcileConfigMap(ctx, &server)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	sts, err := r.reconcileStatefulSet(ctx, &server, configMapName)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -130,6 +136,7 @@ func (r *MinecraftServerReconciler) reconcileNetworkOwnership(ctx context.Contex
 func (r *MinecraftServerReconciler) reconcileStatefulSet(
 	ctx context.Context,
 	server *minecraftv1alpha1.MinecraftServer,
+	configMapName string,
 ) (*appsv1.StatefulSet, error) {
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -139,13 +146,43 @@ func (r *MinecraftServerReconciler) reconcileStatefulSet(
 	}
 
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
-		r.buildStatefulSet(server, sts)
+		r.buildStatefulSet(server, sts, configMapName)
 		return controllerutil.SetControllerReference(server, sts, r.Scheme)
 	}); err != nil {
 		return nil, err
 	}
 
 	return sts, nil
+}
+
+func (r *MinecraftServerReconciler) reconcileConfigMap(ctx context.Context, server *minecraftv1alpha1.MinecraftServer) (string, error) {
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      server.Name + "-config",
+			Namespace: server.Namespace,
+		},
+	}
+
+	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, cm, func() error {
+		if cm.Data == nil {
+			cm.Data = map[string]string{}
+		}
+
+		cm.Data["paper-global.yml"] = strings.Join([]string{
+			"proxies:",
+			"  velocity:",
+			"    enabled: true",
+			"    online-mode: false",
+			`    secret: "${CFG_VELOCITY_SECRET}"`,
+			"",
+		}, "\n")
+
+		return controllerutil.SetControllerReference(server, cm, r.Scheme)
+	}); err != nil {
+		return "", err
+	}
+
+	return cm.Name, nil
 }
 
 func (r *MinecraftServerReconciler) reconcileService(ctx context.Context, server *minecraftv1alpha1.MinecraftServer) error {
@@ -195,7 +232,11 @@ func (r *MinecraftServerReconciler) reconcileStatus(
 	return ready, nil
 }
 
-func (r *MinecraftServerReconciler) buildStatefulSet(server *minecraftv1alpha1.MinecraftServer, sts *appsv1.StatefulSet) {
+func (r *MinecraftServerReconciler) buildStatefulSet(
+	server *minecraftv1alpha1.MinecraftServer,
+	sts *appsv1.StatefulSet,
+	configMapName string,
+) {
 	labels := map[string]string{
 		"app.kubernetes.io/name":       "minecraft-server",
 		"app.kubernetes.io/instance":   server.Name,
@@ -208,6 +249,17 @@ func (r *MinecraftServerReconciler) buildStatefulSet(server *minecraftv1alpha1.M
 		{Name: "TYPE", Value: string(server.Spec.Type)},
 		{Name: "VERSION", Value: server.Spec.Version},
 		{Name: "EULA", Value: strconv.FormatBool(server.Spec.EULA)},
+		{
+			Name: "CFG_VELOCITY_SECRET",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: server.Spec.NetworkRef + "-forwarding-secret",
+					},
+					Key: "forwarding.secret",
+				},
+			},
+		},
 	}
 
 	if server.Spec.Difficulty != "" {
@@ -219,6 +271,16 @@ func (r *MinecraftServerReconciler) buildStatefulSet(server *minecraftv1alpha1.M
 	if len(server.Spec.WhiteList) > 0 {
 		env = append(env, corev1.EnvVar{Name: "WHITELIST", Value: strings.Join(server.Spec.WhiteList, ",")})
 		env = append(env, corev1.EnvVar{Name: "ENFORCE_WHITELIST", Value: "true"})
+	}
+	if server.Spec.Memory != "" {
+		env = append(env, corev1.EnvVar{Name: "MEMORY", Value: server.Spec.Memory})
+	}
+
+	storageRequest := resource.MustParse("10Gi")
+	if server.Spec.StorageSize != "" {
+		if q, err := resource.ParseQuantity(server.Spec.StorageSize); err == nil {
+			storageRequest = q
+		}
 	}
 
 	sts.Labels = labels
@@ -235,7 +297,7 @@ func (r *MinecraftServerReconciler) buildStatefulSet(server *minecraftv1alpha1.M
 				Containers: []corev1.Container{
 					{
 						Name:  "minecraft-server",
-						Image: fmt.Sprintf("itzg/minecraft-server:%s", server.Spec.Version),
+						Image: "itzg/minecraft-server:latest",
 						Ports: []corev1.ContainerPort{
 							{
 								Name:          "minecraft",
@@ -248,6 +310,23 @@ func (r *MinecraftServerReconciler) buildStatefulSet(server *minecraftv1alpha1.M
 							{
 								Name:      "data",
 								MountPath: "/data",
+							},
+							{
+								Name:      "server-config",
+								MountPath: "/config/paper-global.yml",
+								SubPath:   "paper-global.yml",
+							},
+						},
+					},
+				},
+				Volumes: []corev1.Volume{
+					{
+						Name: "server-config",
+						VolumeSource: corev1.VolumeSource{
+							ConfigMap: &corev1.ConfigMapVolumeSource{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: configMapName,
+								},
 							},
 						},
 					},
@@ -265,7 +344,7 @@ func (r *MinecraftServerReconciler) buildStatefulSet(server *minecraftv1alpha1.M
 					},
 					Resources: corev1.VolumeResourceRequirements{
 						Requests: corev1.ResourceList{
-							corev1.ResourceStorage: resource.MustParse("10Gi"),
+							corev1.ResourceStorage: storageRequest,
 						},
 					},
 				},
