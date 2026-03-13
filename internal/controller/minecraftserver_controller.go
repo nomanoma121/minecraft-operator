@@ -172,7 +172,7 @@ func (r *MinecraftServerReconciler) reconcileConfigMap(ctx context.Context, serv
 			"proxies:",
 			"  velocity:",
 			"    enabled: true",
-			"    online-mode: false",
+			"    online-mode: true",
 			`    secret: "${CFG_VELOCITY_SECRET}"`,
 			"",
 		}, "\n")
@@ -249,6 +249,7 @@ func (r *MinecraftServerReconciler) buildStatefulSet(
 		{Name: "TYPE", Value: string(server.Spec.Type)},
 		{Name: "VERSION", Value: server.Spec.Version},
 		{Name: "EULA", Value: strconv.FormatBool(server.Spec.EULA)},
+		{Name: "ONLINE_MODE", Value: "false"},
 		{
 			Name: "CFG_VELOCITY_SECRET",
 			ValueFrom: &corev1.EnvVarSource{
