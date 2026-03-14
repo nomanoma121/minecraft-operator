@@ -61,14 +61,46 @@ spec:
                 - Normal
                 - Hard
                 type: string
+              enforceWhitelist:
+                type: boolean
               eula:
                 type: boolean
+              gamemode:
+                enum:
+                - Survival
+                - Creative
+                - Adventure
+                - Spectator
+                type: string
+              maxPlayers:
+                format: int32
+                type: integer
               memory:
                 pattern: ^[0-9]+[mMgG]$
+                type: string
+              mods:
+                items:
+                  type: string
+                minItems: 1
+                type: array
+              motd:
+                maxLength: 59
+                minLength: 1
                 type: string
               networkRef:
                 minLength: 1
                 type: string
+              plugins:
+                items:
+                  type: string
+                minItems: 1
+                type: array
+              seed:
+                format: int64
+                type: integer
+              simulationDistance:
+                format: int32
+                type: integer
               storageSize:
                 pattern: ^[0-9]+(Mi|Gi|Ti)$
                 type: string
@@ -80,11 +112,16 @@ spec:
               version:
                 minLength: 1
                 type: string
+              viewDistance:
+                format: int32
+                type: integer
               whiteList:
                 items:
                   type: string
                 minItems: 1
                 type: array
+              whiteListEnabled:
+                type: boolean
               worldLevel:
                 enum:
                 - Normal
