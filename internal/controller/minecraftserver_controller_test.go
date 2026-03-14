@@ -51,12 +51,27 @@ var _ = Describe("MinecraftServer Controller", func() {
 					Namespace: namespace,
 				},
 				Spec: minecraftv1alpha1.MinecraftServerSpec{
-					NetworkRef: networkName,
-					Type:       minecraftv1alpha1.MinecraftServerTypePaper,
-					Version:    "1.19.4",
-					EULA:       true,
-					Difficulty: minecraftv1alpha1.MinecraftServerDifficultyNormal,
-					WorldLevel: minecraftv1alpha1.MinecraftServerWorldLevelNormal,
+					NetworkRef:         networkName,
+					Type:               minecraftv1alpha1.MinecraftServerTypePaper,
+					Version:            "1.19.4",
+					EULA:               true,
+					Seed:               123456789,
+					MOTD:               "test motd",
+					MaxPlayers:         42,
+					Difficulty:         minecraftv1alpha1.MinecraftServerDifficultyNormal,
+					WorldLevel:         minecraftv1alpha1.MinecraftServerWorldLevelNormal,
+					Gamemode:           minecraftv1alpha1.MinecraftServerGamemodeAdventure,
+					PVP:                true,
+					Ops:                []string{"admin1", "admin2"},
+					WhiteListEnabled:   true,
+					EnforceWhitelist:   true,
+					WhiteList:          []string{"alice", "bob"},
+					SimulationDistance: 8,
+					ViewDistance:       10,
+					Plugins:            []string{"https://example.com/plugin-a.jar", "https://example.com/plugin-b.jar"},
+					Mods:               []string{"mod-a", "mod-b"},
+					Memory:             "1G",
+					StorageSize:        "12Gi",
 				},
 			}
 			Expect(k8sClient.Create(ctx, server)).To(Succeed())
@@ -88,8 +103,35 @@ var _ = Describe("MinecraftServer Controller", func() {
 			Expect(envMap["TYPE"]).To(Equal("Paper"))
 			Expect(envMap["VERSION"]).To(Equal("1.19.4"))
 			Expect(envMap["EULA"]).To(Equal("true"))
+			Expect(envMap["ONLINE_MODE"]).To(Equal("false"))
+			Expect(envMap["SEED"]).To(Equal("123456789"))
+			Expect(envMap["MOTD"]).To(Equal("test motd"))
+			Expect(envMap["MAX_PLAYERS"]).To(Equal("42"))
 			Expect(envMap["DIFFICULTY"]).To(Equal("Normal"))
 			Expect(envMap["LEVEL_TYPE"]).To(Equal("Normal"))
+			Expect(envMap["MODE"]).To(Equal("adventure"))
+			Expect(envMap["PVP"]).To(Equal("true"))
+			Expect(envMap["OPS"]).To(Equal("admin1,admin2"))
+			Expect(envMap["ENABLE_WHITELIST"]).To(Equal("true"))
+			Expect(envMap["WHITELIST"]).To(Equal("alice,bob"))
+			Expect(envMap["ENFORCE_WHITELIST"]).To(Equal("true"))
+			Expect(envMap["SIMULATION_DISTANCE"]).To(Equal("8"))
+			Expect(envMap["VIEW_DISTANCE"]).To(Equal("10"))
+			Expect(envMap["PLUGINS"]).To(Equal("https://example.com/plugin-a.jar,https://example.com/plugin-b.jar"))
+			Expect(envMap["MODS"]).To(Equal("mod-a,mod-b"))
+			Expect(envMap["MEMORY"]).To(Equal("1G"))
+			Expect(container.Env).To(ContainElement(SatisfyAll(
+				WithTransform(func(e corev1.EnvVar) string { return e.Name }, Equal("CFG_VELOCITY_SECRET")),
+				WithTransform(func(e corev1.EnvVar) *corev1.SecretKeySelector {
+					if e.ValueFrom == nil {
+						return nil
+					}
+					return e.ValueFrom.SecretKeyRef
+				}, Equal(&corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: networkName + "-forwarding-secret"},
+					Key:                  "forwarding.secret",
+				})),
+			)))
 
 			Expect(sts.Spec.VolumeClaimTemplates).To(HaveLen(1))
 			Expect(sts.Spec.VolumeClaimTemplates[0].Name).To(Equal("data"))

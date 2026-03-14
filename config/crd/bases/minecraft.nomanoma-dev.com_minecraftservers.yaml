@@ -90,11 +90,18 @@ spec:
               networkRef:
                 minLength: 1
                 type: string
+              ops:
+                items:
+                  type: string
+                minItems: 1
+                type: array
               plugins:
                 items:
                   type: string
                 minItems: 1
                 type: array
+              pvp:
+                type: boolean
               seed:
                 format: int64
                 type: integer

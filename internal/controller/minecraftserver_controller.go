@@ -269,12 +269,49 @@ func (r *MinecraftServerReconciler) buildStatefulSet(
 	if server.Spec.WorldLevel != "" {
 		env = append(env, corev1.EnvVar{Name: "LEVEL_TYPE", Value: string(server.Spec.WorldLevel)})
 	}
+	if server.Spec.Gamemode != "" {
+		env = append(env, corev1.EnvVar{Name: "MODE", Value: strings.ToLower(string(server.Spec.Gamemode))})
+	}
+	if server.Spec.PVP {
+		env = append(env, corev1.EnvVar{Name: "PVP", Value: "true"})
+	}
+	if len(server.Spec.Ops) > 0 {
+		env = append(env, corev1.EnvVar{Name: "OPS", Value: strings.Join(server.Spec.Ops, ",")})
+	}
+	if server.Spec.Seed != 0 {
+		env = append(env, corev1.EnvVar{Name: "SEED", Value: strconv.FormatInt(server.Spec.Seed, 10)})
+	}
+	if server.Spec.MOTD != "" {
+		env = append(env, corev1.EnvVar{Name: "MOTD", Value: server.Spec.MOTD})
+	}
+	if server.Spec.MaxPlayers > 0 {
+		env = append(env, corev1.EnvVar{Name: "MAX_PLAYERS", Value: strconv.Itoa(int(server.Spec.MaxPlayers))})
+	}
+	enableWhitelist := server.Spec.WhiteListEnabled || len(server.Spec.WhiteList) > 0
+	if enableWhitelist {
+		env = append(env, corev1.EnvVar{Name: "ENABLE_WHITELIST", Value: "true"})
+	}
 	if len(server.Spec.WhiteList) > 0 {
 		env = append(env, corev1.EnvVar{Name: "WHITELIST", Value: strings.Join(server.Spec.WhiteList, ",")})
+	}
+	enforceWhitelist := server.Spec.EnforceWhitelist || len(server.Spec.WhiteList) > 0
+	if enforceWhitelist {
 		env = append(env, corev1.EnvVar{Name: "ENFORCE_WHITELIST", Value: "true"})
 	}
 	if server.Spec.Memory != "" {
 		env = append(env, corev1.EnvVar{Name: "MEMORY", Value: server.Spec.Memory})
+	}
+	if server.Spec.SimulationDistance > 0 {
+		env = append(env, corev1.EnvVar{Name: "SIMULATION_DISTANCE", Value: strconv.Itoa(int(server.Spec.SimulationDistance))})
+	}
+	if server.Spec.ViewDistance > 0 {
+		env = append(env, corev1.EnvVar{Name: "VIEW_DISTANCE", Value: strconv.Itoa(int(server.Spec.ViewDistance))})
+	}
+	if len(server.Spec.Plugins) > 0 {
+		env = append(env, corev1.EnvVar{Name: "PLUGINS", Value: strings.Join(server.Spec.Plugins, ",")})
+	}
+	if len(server.Spec.Mods) > 0 {
+		env = append(env, corev1.EnvVar{Name: "MODS", Value: strings.Join(server.Spec.Mods, ",")})
 	}
 
 	storageRequest := resource.MustParse("10Gi")

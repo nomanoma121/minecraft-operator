@@ -35,3 +35,24 @@ spec:
   eula: true
   worldLevel: Flat
   difficulty: Peaceful
+---
+lobby:
+  apiVersion: minecraft.nomanoma-dev.com/v1alpha1
+  kind: MinecraftServer
+  metadata:
+    labels:
+      app.kubernetes.io/name: minecraft-operator
+      app.kubernetes.io/managed-by: kustomize
+    name: lobby
+  spec:
+    networkRef: test-network
+    type: Paper
+    version: "1.20.1"
+    memory: "512M"
+    storageSize: "2Gi"
+    eula: true
+    gameMode: Creative
+    worldLevel: Flat
+    difficulty: Peaceful
+    plugins:
+      - 

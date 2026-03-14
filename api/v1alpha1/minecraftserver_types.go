@@ -87,6 +87,11 @@ type MinecraftServerSpec struct {
 	// +kubebuilder:validation:Enum=Survival;Creative;Adventure;Spectator
 	Gamemode MinecraftServerGamemode `json:"gamemode,omitempty"`
 	// +optional
+	PVP bool `json:"pvp,omitempty"`
+	// +optional
+	// +kubebuilder:validation:MinItems=1
+	Ops []string `json:"ops,omitempty"`
+	// +optional
 	WhiteListEnabled bool `json:"whiteListEnabled,omitempty"`
 	// +optional
 	EnforceWhitelist bool `json:"enforceWhitelist,omitempty"`
