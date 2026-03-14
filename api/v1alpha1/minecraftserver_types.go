@@ -47,6 +47,15 @@ const (
 	MinecraftServerDifficultyHard     MinecraftServerDifficulty = "Hard"
 )
 
+type MinecraftServerGamemode string
+
+const (
+	MinecraftServerGamemodeSurvival  MinecraftServerGamemode = "Survival"
+	MinecraftServerGamemodeCreative  MinecraftServerGamemode = "Creative"
+	MinecraftServerGamemodeAdventure MinecraftServerGamemode = "Adventure"
+	MinecraftServerGamemodeSpectator MinecraftServerGamemode = "Spectator"
+)
+
 // MinecraftServerSpec defines the desired state of MinecraftServer
 type MinecraftServerSpec struct {
 	// +kubebuilder:validation:MinLength=1
@@ -61,8 +70,13 @@ type MinecraftServerSpec struct {
 	// +required
 	EULA bool `json:"eula"`
 	// +optional
-	// +kubebuilder:validation:MinItems=1
-	WhiteList []string `json:"whiteList,omitempty"`
+	Seed int64 `json:"seed,omitempty"`
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=59
+	MOTD string `json:"motd,omitempty"`
+	// +optional
+	MaxPlayers int32 `json:"maxPlayers,omitempty"`
 	// +kubebuilder:validation:Enum=Normal;Flat;Amplified
 	// +optional
 	WorldLevel MinecraftServerWorldLevel `json:"worldLevel,omitempty"`
@@ -70,11 +84,34 @@ type MinecraftServerSpec struct {
 	// +optional
 	Difficulty MinecraftServerDifficulty `json:"difficulty,omitempty"`
 	// +optional
+	// +kubebuilder:validation:Enum=Survival;Creative;Adventure;Spectator
+	Gamemode MinecraftServerGamemode `json:"gamemode,omitempty"`
+	// +optional
+	WhiteListEnabled bool `json:"whiteListEnabled,omitempty"`
+	// +optional
+	EnforceWhitelist bool `json:"enforceWhitelist,omitempty"`
+	// +optional
+	// +kubebuilder:validation:MinItems=1
+	WhiteList []string `json:"whiteList,omitempty"`
+
+	// +optional
 	// +kubebuilder:validation:Pattern=`^[0-9]+[mMgG]$`
 	Memory string `json:"memory,omitempty"`
 	// +optional
 	// +kubebuilder:validation:Pattern=`^[0-9]+(Mi|Gi|Ti)$`
 	StorageSize string `json:"storageSize,omitempty"`
+
+	// +optional
+	SimulationDistance int32 `json:"simulationDistance,omitempty"`
+	// +optional
+	ViewDistance int32 `json:"viewDistance,omitempty"`
+
+	// +optional
+	// +kubebuilder:validation:MinItems=1
+	Plugins []string `json:"plugins,omitempty"`
+	// +optional
+	// +kubebuilder:validation:MinItems=1
+	Mods []string `json:"mods,omitempty"`
 }
 
 // MinecraftServerStatus defines the observed state of MinecraftServer.
