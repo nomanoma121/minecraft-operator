@@ -44,6 +44,20 @@ type MinecraftServerReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+const (
+	minecraftServerContainerName = "minecraft-server"
+	minecraftServerImage         = "itzg/minecraft-server:latest"
+	minecraftServerPortName      = "minecraft"
+	minecraftServerPort          = 25565
+	minecraftDataVolumeName      = "data"
+	minecraftDataMountPath       = "/data"
+	serverConfigVolumeName       = "server-config"
+	serverConfigMountPath        = "/config/paper-global.yml"
+	serverConfigSubPath          = "paper-global.yml"
+	defaultStorageRequest        = "10Gi"
+	paperGlobalConfigKey         = "paper-global.yml"
+)
+
 // +kubebuilder:rbac:groups=minecraft.nomanoma-dev.com,resources=minecraftservers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=minecraft.nomanoma-dev.com,resources=minecraftservers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=minecraft.nomanoma-dev.com,resources=minecraftservers/finalizers,verbs=update
@@ -168,7 +182,7 @@ func (r *MinecraftServerReconciler) reconcileConfigMap(ctx context.Context, serv
 			cm.Data = map[string]string{}
 		}
 
-		cm.Data["paper-global.yml"] = strings.Join([]string{
+		cm.Data[paperGlobalConfigKey] = strings.Join([]string{
 			"proxies:",
 			"  velocity:",
 			"    enabled: true",
@@ -314,7 +328,7 @@ func (r *MinecraftServerReconciler) buildStatefulSet(
 		env = append(env, corev1.EnvVar{Name: "MODS", Value: strings.Join(server.Spec.Mods, ",")})
 	}
 
-	storageRequest := resource.MustParse("10Gi")
+	storageRequest := resource.MustParse(defaultStorageRequest)
 	if server.Spec.StorageSize != "" {
 		if q, err := resource.ParseQuantity(server.Spec.StorageSize); err == nil {
 			storageRequest = q
@@ -334,32 +348,32 @@ func (r *MinecraftServerReconciler) buildStatefulSet(
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{
 					{
-						Name:  "minecraft-server",
-						Image: "itzg/minecraft-server:latest",
+						Name:  minecraftServerContainerName,
+						Image: minecraftServerImage,
 						Ports: []corev1.ContainerPort{
 							{
-								Name:          "minecraft",
-								ContainerPort: 25565,
+								Name:          minecraftServerPortName,
+								ContainerPort: minecraftServerPort,
 								Protocol:      corev1.ProtocolTCP,
 							},
 						},
 						Env: env,
 						VolumeMounts: []corev1.VolumeMount{
 							{
-								Name:      "data",
-								MountPath: "/data",
+								Name:      minecraftDataVolumeName,
+								MountPath: minecraftDataMountPath,
 							},
 							{
-								Name:      "server-config",
-								MountPath: "/config/paper-global.yml",
-								SubPath:   "paper-global.yml",
+								Name:      serverConfigVolumeName,
+								MountPath: serverConfigMountPath,
+								SubPath:   serverConfigSubPath,
 							},
 						},
 					},
 				},
 				Volumes: []corev1.Volume{
 					{
-						Name: "server-config",
+						Name: serverConfigVolumeName,
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{
 								LocalObjectReference: corev1.LocalObjectReference{
@@ -374,7 +388,7 @@ func (r *MinecraftServerReconciler) buildStatefulSet(
 		VolumeClaimTemplates: []corev1.PersistentVolumeClaim{
 			{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "data",
+					Name: minecraftDataVolumeName,
 				},
 				Spec: corev1.PersistentVolumeClaimSpec{
 					AccessModes: []corev1.PersistentVolumeAccessMode{
@@ -404,8 +418,8 @@ func (r *MinecraftServerReconciler) buildService(server *minecraftv1alpha1.Minec
 		Selector: labels,
 		Ports: []corev1.ServicePort{
 			{
-				Name:     "minecraft",
-				Port:     25565,
+				Name:     minecraftServerPortName,
+				Port:     minecraftServerPort,
 				Protocol: corev1.ProtocolTCP,
 			},
 		},

@@ -69,12 +69,26 @@ func (h *Harness) CreateNetwork(name string, opts CreateNetworkOpts) *minecraftv
 }
 
 type CreateServerOpts struct {
-	Version    *string
-	Type       *minecraftv1alpha1.MinecraftServerType
-	EULA       *bool
-	Difficulty *minecraftv1alpha1.MinecraftServerDifficulty
-	WorldLevel *minecraftv1alpha1.MinecraftServerWorldLevel
-	Whitelist  *[]string
+	Version            *string
+	Type               *minecraftv1alpha1.MinecraftServerType
+	EULA               *bool
+	Seed               *int64
+	MOTD               *string
+	MaxPlayers         *int32
+	Difficulty         *minecraftv1alpha1.MinecraftServerDifficulty
+	WorldLevel         *minecraftv1alpha1.MinecraftServerWorldLevel
+	Gamemode           *minecraftv1alpha1.MinecraftServerGamemode
+	PVP                *bool
+	Ops                *[]string
+	WhiteListEnabled   *bool
+	EnforceWhitelist   *bool
+	Whitelist          *[]string
+	Memory             *string
+	StorageSize        *string
+	SimulationDistance *int32
+	ViewDistance       *int32
+	Plugins            *[]string
+	Mods               *[]string
 }
 
 func (h *Harness) CreateServer(
@@ -232,6 +246,15 @@ func applyServerSpecOpts(defaultSpec minecraftv1alpha1.MinecraftServerSpec, opts
 	if opts.EULA != nil {
 		defaultSpec.EULA = *opts.EULA
 	}
+	if opts.Seed != nil {
+		defaultSpec.Seed = *opts.Seed
+	}
+	if opts.MOTD != nil {
+		defaultSpec.MOTD = *opts.MOTD
+	}
+	if opts.MaxPlayers != nil {
+		defaultSpec.MaxPlayers = *opts.MaxPlayers
+	}
 	if opts.Type != nil {
 		defaultSpec.Type = *opts.Type
 	}
@@ -241,8 +264,41 @@ func applyServerSpecOpts(defaultSpec minecraftv1alpha1.MinecraftServerSpec, opts
 	if opts.WorldLevel != nil {
 		defaultSpec.WorldLevel = *opts.WorldLevel
 	}
+	if opts.Gamemode != nil {
+		defaultSpec.Gamemode = *opts.Gamemode
+	}
+	if opts.PVP != nil {
+		defaultSpec.PVP = *opts.PVP
+	}
+	if opts.Ops != nil {
+		defaultSpec.Ops = *opts.Ops
+	}
+	if opts.WhiteListEnabled != nil {
+		defaultSpec.WhiteListEnabled = *opts.WhiteListEnabled
+	}
+	if opts.EnforceWhitelist != nil {
+		defaultSpec.EnforceWhitelist = *opts.EnforceWhitelist
+	}
 	if opts.Whitelist != nil {
 		defaultSpec.WhiteList = *opts.Whitelist
+	}
+	if opts.Memory != nil {
+		defaultSpec.Memory = *opts.Memory
+	}
+	if opts.StorageSize != nil {
+		defaultSpec.StorageSize = *opts.StorageSize
+	}
+	if opts.SimulationDistance != nil {
+		defaultSpec.SimulationDistance = *opts.SimulationDistance
+	}
+	if opts.ViewDistance != nil {
+		defaultSpec.ViewDistance = *opts.ViewDistance
+	}
+	if opts.Plugins != nil {
+		defaultSpec.Plugins = *opts.Plugins
+	}
+	if opts.Mods != nil {
+		defaultSpec.Mods = *opts.Mods
 	}
 	return defaultSpec
 }

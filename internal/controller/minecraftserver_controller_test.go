@@ -89,10 +89,10 @@ var _ = Describe("MinecraftServer Controller", func() {
 			Expect(sts.Spec.Template.Spec.Containers).To(HaveLen(1))
 
 			container := sts.Spec.Template.Spec.Containers[0]
-			Expect(container.Image).To(Equal("itzg/minecraft-server:latest"))
+			Expect(container.Image).To(Equal(minecraftServerImage))
 			Expect(container.Ports).To(ContainElement(corev1.ContainerPort{
-				Name:          "minecraft",
-				ContainerPort: 25565,
+				Name:          minecraftServerPortName,
+				ContainerPort: minecraftServerPort,
 				Protocol:      corev1.ProtocolTCP,
 			}))
 
@@ -134,7 +134,7 @@ var _ = Describe("MinecraftServer Controller", func() {
 			)))
 
 			Expect(sts.Spec.VolumeClaimTemplates).To(HaveLen(1))
-			Expect(sts.Spec.VolumeClaimTemplates[0].Name).To(Equal("data"))
+			Expect(sts.Spec.VolumeClaimTemplates[0].Name).To(Equal(minecraftDataVolumeName))
 
 			svc := &corev1.Service{}
 			Eventually(func() error {
@@ -145,7 +145,7 @@ var _ = Describe("MinecraftServer Controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			Expect(svc.Spec.Type).To(Equal(corev1.ServiceTypeClusterIP))
-			Expect(svc.Spec.Ports[0].Port).To(Equal(int32(25565)))
+			Expect(svc.Spec.Ports[0].Port).To(Equal(int32(minecraftServerPort)))
 
 			updatedServer := &minecraftv1alpha1.MinecraftServer{}
 			Eventually(func() bool {
@@ -179,7 +179,7 @@ var _ = Describe("MinecraftServer Controller", func() {
 				}
 				return s.Status.Address
 			}, timeout, interval).Should(Equal(
-				fmt.Sprintf("%s.%s.svc.cluster.local:25565", serverName, namespace),
+				fmt.Sprintf("%s.%s.svc.cluster.local:%d", serverName, namespace, minecraftServerPort),
 			))
 		})
 	})
@@ -250,7 +250,7 @@ var _ = Describe("MinecraftServer Controller", func() {
 					Name: name, Namespace: namespace,
 				}, sts)
 			}, timeout, interval).Should(Succeed())
-			Expect(sts.Spec.Template.Spec.Containers[0].Image).To(Equal("itzg/minecraft-server:latest"))
+			Expect(sts.Spec.Template.Spec.Containers[0].Image).To(Equal(minecraftServerImage))
 
 			Eventually(func() error {
 				s := &minecraftv1alpha1.MinecraftServer{}
