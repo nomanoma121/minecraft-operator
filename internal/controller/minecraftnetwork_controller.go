@@ -45,6 +45,15 @@ type MinecraftNetworkReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+const (
+	forwardingSecretBytesLength = 32
+	networkDefaultMOTD          = "<#09add3>Minecraft Network"
+	networkShowMaxPlayers       = 500
+	networkVelocityConfigVer    = "2.7"
+	networkForwardingModeModern = "modern"
+	defaultLobbyServerName      = "lobby"
+)
+
 // +kubebuilder:rbac:groups=minecraft.nomanoma-dev.com,resources=minecraftnetworks,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=minecraft.nomanoma-dev.com,resources=minecraftnetworks/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=minecraft.nomanoma-dev.com,resources=minecraftnetworks/finalizers,verbs=update
@@ -105,7 +114,7 @@ func (r *MinecraftNetworkReconciler) reconcileForwardingSecret(
 ) error {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      network.Name + "-forwarding-secret",
+			Name:      network.Name + networkForwardingSecretNameSuffix,
 			Namespace: network.Namespace,
 		},
 	}
@@ -118,14 +127,14 @@ func (r *MinecraftNetworkReconciler) reconcileForwardingSecret(
 			secret.StringData = map[string]string{}
 		}
 
-		_, hasData := secret.Data["forwarding.secret"]
-		_, hasStringData := secret.StringData["forwarding.secret"]
+		_, hasData := secret.Data[forwardingSecretKey]
+		_, hasStringData := secret.StringData[forwardingSecretKey]
 		if !hasData && !hasStringData {
 			generated, genErr := generateForwardingSecret()
 			if genErr != nil {
 				return genErr
 			}
-			secret.StringData["forwarding.secret"] = generated
+			secret.StringData[forwardingSecretKey] = generated
 		}
 
 		return controllerutil.SetControllerReference(network, secret, r.Scheme)
@@ -134,7 +143,7 @@ func (r *MinecraftNetworkReconciler) reconcileForwardingSecret(
 }
 
 func generateForwardingSecret() (string, error) {
-	buf := make([]byte, 32)
+	buf := make([]byte, forwardingSecretBytesLength)
 	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
@@ -195,7 +204,7 @@ func (r *MinecraftNetworkReconciler) reconcileVelocityConfigMaps(
 		proxy := &proxies[i]
 		cm := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      proxy.Name + "-velocity-config",
+				Name:      proxy.Name + velocityConfigMapSuffix,
 				Namespace: proxy.Namespace,
 			},
 		}
@@ -204,7 +213,7 @@ func (r *MinecraftNetworkReconciler) reconcileVelocityConfigMaps(
 			if cm.Data == nil {
 				cm.Data = map[string]string{}
 			}
-			cm.Data["velocity.toml"] = toml
+			cm.Data[velocityConfigKey] = toml
 			return controllerutil.SetControllerReference(proxy, cm, r.Scheme)
 		}); err != nil {
 			return err
@@ -268,19 +277,19 @@ func renderVelocityToml(network *minecraftv1alpha1.MinecraftNetwork, servers []m
 	})
 
 	lines := []string{
-		`config-version = "2.7"`,
-		`bind = "0.0.0.0:25577"`,
-		`motd = "<#09add3>Minecraft Network"`,
-		`show-max-players = 500`,
+		fmt.Sprintf(`config-version = %q`, networkVelocityConfigVer),
+		fmt.Sprintf(`bind = "0.0.0.0:%d"`, minecraftProxyPort),
+		fmt.Sprintf(`motd = %q`, networkDefaultMOTD),
+		fmt.Sprintf(`show-max-players = %d`, networkShowMaxPlayers),
 		`online-mode = true`,
-		`player-info-forwarding-mode = "modern"`,
-		`forwarding-secret-file = "/config/forwarding.secret"`,
+		fmt.Sprintf(`player-info-forwarding-mode = %q`, networkForwardingModeModern),
+		fmt.Sprintf(`forwarding-secret-file = "/config/%s"`, forwardingSecretKey),
 		"",
 		"[servers]",
 	}
 	for i := range sortedServers {
 		serverName := sortedServers[i].Name
-		address := fmt.Sprintf("%s.%s.svc.cluster.local:25565", serverName, network.Namespace)
+		address := fmt.Sprintf("%s.%s.svc.cluster.local:%d", serverName, network.Namespace, minecraftServerPort)
 		lines = append(lines, fmt.Sprintf(`%s = "%s"`, serverName, address))
 	}
 
@@ -318,8 +327,8 @@ func buildTryServers(defaultServer string, sortedServers []minecraftv1alpha1.Min
 		}
 	}
 	if priority == "" {
-		if _, ok := exists["lobby"]; ok {
-			priority = "lobby"
+		if _, ok := exists[defaultLobbyServerName]; ok {
+			priority = defaultLobbyServerName
 		}
 	}
 	if priority == "" {

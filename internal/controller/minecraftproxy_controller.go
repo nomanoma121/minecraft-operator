@@ -42,6 +42,22 @@ type MinecraftProxyReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+const (
+	minecraftProxyAppName            = "minecraft-proxy"
+	minecraftProxyContainerName      = "minecraft-proxy"
+	minecraftProxyImage              = "itzg/mc-proxy:latest"
+	minecraftProxyPortName           = "proxy"
+	minecraftProxyPort               = 25577
+	velocityConfigMapSuffix          = "-velocity-config"
+	velocityConfigKey                = "velocity.toml"
+	velocityConfigVolumeName         = "velocity-config"
+	forwardingSecretVolumeName       = "forwarding-secret"
+	velocityConfigMountPath          = "/config/velocity.toml"
+	forwardingSecretMountPath        = "/config/forwarding.secret"
+	forwardingSecretKey              = "forwarding.secret"
+	networkForwardingSecretNameSuffix = "-forwarding-secret"
+)
+
 // +kubebuilder:rbac:groups=minecraft.nomanoma-dev.com,resources=minecraftproxies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=minecraft.nomanoma-dev.com,resources=minecraftproxies/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=minecraft.nomanoma-dev.com,resources=minecraftproxies/finalizers,verbs=update
@@ -134,7 +150,7 @@ func (r *MinecraftProxyReconciler) reconcileNetworkOwnership(ctx context.Context
 func (r *MinecraftProxyReconciler) reconcileConfigMap(ctx context.Context, proxy *minecraftv1alpha1.MinecraftProxy) (*corev1.ConfigMap, error) {
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      proxy.Name + "-velocity-config",
+			Name:      proxy.Name + velocityConfigMapSuffix,
 			Namespace: proxy.Namespace,
 		},
 	}
@@ -144,15 +160,15 @@ func (r *MinecraftProxyReconciler) reconcileConfigMap(ctx context.Context, proxy
 			cm.Data = map[string]string{}
 		}
 		// Initialize with a minimal valid velocity.toml (Network controller will overwrite it)
-		if _, ok := cm.Data["velocity.toml"]; !ok {
-			cm.Data["velocity.toml"] = strings.Join([]string{
+		if _, ok := cm.Data[velocityConfigKey]; !ok {
+			cm.Data[velocityConfigKey] = strings.Join([]string{
 				`config-version = "2.7"`,
-				`bind = "0.0.0.0:25577"`,
+				fmt.Sprintf(`bind = "0.0.0.0:%d"`, minecraftProxyPort),
 				`motd = "<#09add3>Minecraft Network"`,
 				`show-max-players = 500`,
 				`online-mode = false`,
 				`player-info-forwarding-mode = "none"`,
-				`forwarding-secret-file = "forwarding.secret"`,
+				fmt.Sprintf(`forwarding-secret-file = "%s"`, forwardingSecretKey),
 				"",
 				"[servers]",
 				"",
@@ -231,7 +247,7 @@ func (r *MinecraftProxyReconciler) reconcileStatus(
 		})
 	}
 	proxy.Status.ReadyReplicas = deploy.Status.ReadyReplicas
-	proxy.Status.Address = fmt.Sprintf("%s.%s.svc.cluster.local:25577", proxy.Name, proxy.Namespace)
+	proxy.Status.Address = fmt.Sprintf("%s.%s.svc.cluster.local:%d", proxy.Name, proxy.Namespace, minecraftProxyPort)
 
 	if err := r.Status().Update(ctx, proxy); err != nil {
 		return false, err
@@ -242,7 +258,7 @@ func (r *MinecraftProxyReconciler) reconcileStatus(
 
 func (r *MinecraftProxyReconciler) buildDeployment(proxy *minecraftv1alpha1.MinecraftProxy, deploy *appsv1.Deployment, cm *corev1.ConfigMap) {
 	labels := map[string]string{
-		"app.kubernetes.io/name":       "minecraft-proxy",
+		"app.kubernetes.io/name":       minecraftProxyAppName,
 		"app.kubernetes.io/instance":   proxy.Name,
 		"app.kubernetes.io/managed-by": "minecraft-operator",
 	}
@@ -270,26 +286,26 @@ func (r *MinecraftProxyReconciler) buildDeployment(proxy *minecraftv1alpha1.Mine
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{
 					{
-						Name:  "minecraft-proxy",
-						Image: "itzg/mc-proxy:latest",
+						Name:  minecraftProxyContainerName,
+						Image: minecraftProxyImage,
 						Ports: []corev1.ContainerPort{
 							{
-								Name:          "proxy",
-								ContainerPort: 25577,
+								Name:          minecraftProxyPortName,
+								ContainerPort: minecraftProxyPort,
 								Protocol:      corev1.ProtocolTCP,
 							},
 						},
 						Env: env,
 						VolumeMounts: []corev1.VolumeMount{
 							{
-								Name:      "velocity-config",
-								MountPath: "/config/velocity.toml",
-								SubPath:   "velocity.toml",
+								Name:      velocityConfigVolumeName,
+								MountPath: velocityConfigMountPath,
+								SubPath:   velocityConfigKey,
 							},
 							{
-								Name:      "forwarding-secret",
-								MountPath: "/config/forwarding.secret",
-								SubPath:   "forwarding.secret",
+								Name:      forwardingSecretVolumeName,
+								MountPath: forwardingSecretMountPath,
+								SubPath:   forwardingSecretKey,
 								ReadOnly:  true,
 							},
 						},
@@ -297,7 +313,7 @@ func (r *MinecraftProxyReconciler) buildDeployment(proxy *minecraftv1alpha1.Mine
 				},
 				Volumes: []corev1.Volume{
 					{
-						Name: "velocity-config",
+						Name: velocityConfigVolumeName,
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{
 								LocalObjectReference: corev1.LocalObjectReference{
@@ -307,10 +323,10 @@ func (r *MinecraftProxyReconciler) buildDeployment(proxy *minecraftv1alpha1.Mine
 						},
 					},
 					{
-						Name: "forwarding-secret",
+						Name: forwardingSecretVolumeName,
 						VolumeSource: corev1.VolumeSource{
 							Secret: &corev1.SecretVolumeSource{
-								SecretName: proxy.Spec.NetworkRef + "-forwarding-secret",
+								SecretName: proxy.Spec.NetworkRef + networkForwardingSecretNameSuffix,
 							},
 						},
 					},
@@ -322,7 +338,7 @@ func (r *MinecraftProxyReconciler) buildDeployment(proxy *minecraftv1alpha1.Mine
 
 func (r *MinecraftProxyReconciler) buildService(proxy *minecraftv1alpha1.MinecraftProxy, svc *corev1.Service) {
 	labels := map[string]string{
-		"app.kubernetes.io/name":       "minecraft-proxy",
+		"app.kubernetes.io/name":       minecraftProxyAppName,
 		"app.kubernetes.io/instance":   proxy.Name,
 		"app.kubernetes.io/managed-by": "minecraft-operator",
 	}
@@ -333,8 +349,8 @@ func (r *MinecraftProxyReconciler) buildService(proxy *minecraftv1alpha1.Minecra
 		Selector: labels,
 		Ports: []corev1.ServicePort{
 			{
-				Name:     "proxy",
-				Port:     25577,
+				Name:     minecraftProxyPortName,
+				Port:     minecraftProxyPort,
 				Protocol: corev1.ProtocolTCP,
 			},
 		},

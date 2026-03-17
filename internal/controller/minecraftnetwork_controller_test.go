@@ -125,7 +125,7 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 	})
 
 	Context("velocity.toml generation", func() {
-		It("writes [servers] entries with service FQDN and port 25565", func() {
+		It("writes [servers] entries with service FQDN and server port", func() {
 			ctx := context.Background()
 			h := NewHarness(ctx, "default", timeout, interval)
 			networkName := fmt.Sprintf("network-%d", time.Now().UnixNano())
@@ -142,19 +142,20 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 			Eventually(func() string {
 				cm := &corev1.ConfigMap{}
 				if err := k8sClient.Get(ctx, types.NamespacedName{
-					Name:      proxy.Name + "-velocity-config",
+					Name:      proxy.Name + velocityConfigMapSuffix,
 					Namespace: h.Namespace,
 				}, cm); err != nil {
 					return ""
 				}
-				return cm.Data["velocity.toml"]
+				return cm.Data[velocityConfigKey]
 			}, timeout, interval).Should(And(
 				ContainSubstring("[servers]"),
 				ContainSubstring(fmt.Sprintf(
-					`%s = "%s.%s.svc.cluster.local:25565"`,
+					`%s = "%s.%s.svc.cluster.local:%d"`,
 					server.Name,
 					server.Name,
 					h.Namespace,
+					minecraftServerPort,
 				)),
 			))
 		})
@@ -199,7 +200,7 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 
 			h.CreateNetwork(networkName, CreateNetworkOpts{DefaultServer: &invalidDefault})
 			proxy := h.CreateProxy(networkName, "proxy", CreateProxyOpts{})
-			lobby := h.CreateServer(networkName, "lobby", CreateServerOpts{})
+			lobby := h.CreateServer(networkName, defaultLobbyServerName, CreateServerOpts{})
 			other := h.CreateServer(networkName, "server-other", CreateServerOpts{})
 
 			h.ReconcileProxyOnce(proxy.Name)
@@ -371,12 +372,12 @@ var _ = Describe("MinecraftNetwork Controller", func() {
 func getVelocityConfigToml(ctx context.Context, h *Harness, proxyName string) string {
 	cm := &corev1.ConfigMap{}
 	if err := k8sClient.Get(ctx, types.NamespacedName{
-		Name:      proxyName + "-velocity-config",
+		Name:      proxyName + velocityConfigMapSuffix,
 		Namespace: h.Namespace,
 	}, cm); err != nil {
 		return ""
 	}
-	return cm.Data["velocity.toml"]
+	return cm.Data[velocityConfigKey]
 }
 
 func extractTryServers(toml string) []string {

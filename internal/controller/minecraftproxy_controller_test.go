@@ -65,10 +65,10 @@ var _ = Describe("MinecraftProxy Controller", func() {
 			}, timeout, interval).Should(Succeed())
 			Expect(deploy.Spec.Template.Spec.Containers).To(HaveLen(1))
 			container := deploy.Spec.Template.Spec.Containers[0]
-			Expect(container.Image).To(Equal("itzg/mc-proxy:latest"))
+			Expect(container.Image).To(Equal(minecraftProxyImage))
 			Expect(container.Ports).To(ContainElement(corev1.ContainerPort{
-				Name:          "proxy",
-				ContainerPort: 25577,
+				Name:          minecraftProxyPortName,
+				ContainerPort: minecraftProxyPort,
 				Protocol:      corev1.ProtocolTCP,
 			}))
 			Expect(container.Env).To(ContainElement(corev1.EnvVar{
@@ -83,11 +83,11 @@ var _ = Describe("MinecraftProxy Controller", func() {
 			cm := &corev1.ConfigMap{}
 			Eventually(func() error {
 				return k8sClient.Get(ctx, types.NamespacedName{
-					Name:      proxyName + "-velocity-config",
+					Name:      proxyName + velocityConfigMapSuffix,
 					Namespace: namespace,
 				}, cm)
 			}, timeout, interval).Should(Succeed())
-			Expect(cm.Data).To(HaveKey("velocity.toml"))
+			Expect(cm.Data).To(HaveKey(velocityConfigKey))
 
 			svc := &corev1.Service{}
 			Eventually(func() error {
@@ -95,7 +95,7 @@ var _ = Describe("MinecraftProxy Controller", func() {
 			}, timeout, interval).Should(Succeed())
 			Expect(svc.Spec.Type).To(Equal(corev1.ServiceTypeClusterIP))
 			Expect(svc.Spec.Ports).To(HaveLen(1))
-			Expect(svc.Spec.Ports[0].Port).To(Equal(int32(25577)))
+			Expect(svc.Spec.Ports[0].Port).To(Equal(int32(minecraftProxyPort)))
 
 			Eventually(func() string {
 				p := &minecraftv1alpha1.MinecraftProxy{}
@@ -103,7 +103,7 @@ var _ = Describe("MinecraftProxy Controller", func() {
 					return ""
 				}
 				return p.Status.Address
-			}, timeout, interval).Should(Equal(fmt.Sprintf("%s.%s.svc.cluster.local:25577", proxyName, namespace)))
+			}, timeout, interval).Should(Equal(fmt.Sprintf("%s.%s.svc.cluster.local:%d", proxyName, namespace, minecraftProxyPort)))
 
 			Eventually(func() bool {
 				p := &minecraftv1alpha1.MinecraftProxy{}
